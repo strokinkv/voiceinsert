@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VoiceInsert.App/VoiceInsert.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoiceInsert.App.Tests/VoiceInsert.App.Tests.csproj" />
+  </Folder>
+</Solution>

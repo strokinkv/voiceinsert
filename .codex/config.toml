@@ -1,0 +1,5 @@
+[mcp_servers.context7]
+command = "npx.cmd"
+args = ["-y", "@upstash/context7-mcp@latest"]
+startup_timeout_sec = 40
+enabled = true

@@ -1,0 +1,75 @@
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+Release/
+Debug/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.nupkg
+*.snupkg
+
+# Local .NET/NuGet sandbox state
+.dotnet/
+.appdata/
+.localappdata/
+.nuget/
+.packages/
+packages/
+project.lock.json
+
+# Local smoke-test projects
+.tmp/
+tmp/
+temp/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.DotSettings.user
+*.rsuser
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test output
+TestResults/
+coverage/
+CoverageReport/
+*.coverage
+*.coveragexml
+*.cobertura.xml
+*.trx
+
+# Logs and diagnostics
+*.log
+logs/
+Logs/
+*.binlog
+
+# Local app/user data
+settings.json
+secrets.json
+.env
+.env.*
+
+# Temporary editor/merge files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+ehthumbs.db

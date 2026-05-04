@@ -1,0 +1,91 @@
+# VoiceInsert
+
+![VoiceInsert](docs/assets/VoiceInsert.png)
+
+VoiceInsert is a Windows 11 background utility. It records speech from a microphone, sends WAV audio to an OpenAI-compatible Audio API, and inserts the returned text into the active window through the clipboard. Speech-to-English translation is also supported when the selected model and API endpoint allow it.
+
+Russian documentation: [README_ru.md](README_ru.md)
+
+Technical specification: [docs/technical-specification.md](docs/technical-specification.md)
+
+## Installation
+
+Download and run `VoiceInsertSetup.exe`.
+
+Silent install:
+
+```powershell
+.\artifacts\installer\VoiceInsertSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+```
+
+## How to Use
+
+1. Start VoiceInsert. The app appears in the system tray.
+2. Open `Settings` from the tray context menu.
+3. Select an API profile, enter an API key if needed, load models, and select a model.
+4. Select a microphone and test the input level if needed.
+5. Place the cursor in the target window and press `Ctrl+Space` to recognize speech.
+6. Use `Alt+Y` to translate speech to English.
+
+During recording, VoiceInsert shows a compact window with a scrolling signal amplitude waveform. After the API response is received, the text is inserted into the active window through the clipboard.
+
+## Default API Profiles
+
+VoiceInsert creates two API profiles on first launch:
+
+- `wlast`, first and primary profile: `http://127.0.0.1:9573`
+- `groq`: `https://api.groq.com/openai/`, without an API key
+
+Model discovery:
+
+```text
+GET {base_url}/v1/models
+```
+
+Transcription:
+
+```text
+POST {base_url}/v1/audio/transcriptions
+```
+
+Speech translation to English:
+
+```text
+POST {base_url}/v1/audio/translations
+```
+
+Each API profile has one model field. The same selected model is used for transcription and translation. If a translation request fails, VoiceInsert logs the selected model and notes that the model may not support audio translation.
+
+Normal transcription is not translated by VoiceInsert. If the transcription endpoint returns translated text, that behavior comes from the API, model, or `language` parameters.
+
+## Current Behavior
+
+- The tray context menu is localized and contains `Settings` / `Exit`.
+- Default transcription hotkey: `Ctrl+Space`.
+- Default English translation hotkey: `Alt+Y`.
+- Recording modes: toggle, hold, silence timeout.
+- In toggle and hold modes, silence does not stop recording; only max recording duration applies.
+- Text insertion uses the clipboard.
+- API keys are protected with Windows DPAPI per profile.
+- Audio and recognized text are not saved to disk.
+- Logs do not contain audio, recognized text, or API keys.
+- Settings use top navigation, field-level tooltips, compact profile controls, one model field, and a global status bar.
+- Microphone selection displays full Windows CoreAudio device names, and the full selected name is available in a tooltip.
+- The `Logs` section shows the last error time and message for the current app session.
+
+## Privacy
+
+- VoiceInsert does not save audio to disk.
+- Recognized text is not stored after insertion.
+- Logs do not include audio, recognized text, or API keys.
+- API keys are stored through Windows DPAPI separately for each profile.
+- Audio is sent only to the API endpoint configured in the selected profile.
+- With the default `wlast` profile, requests go to the local address `http://127.0.0.1:9573`.
+
+## Limitations
+
+- Windows 11 only.
+- Requires an OpenAI-compatible Audio API with `/v1/audio/transcriptions`, `/v1/audio/translations`, and `/v1/models` endpoints.
+- Speech-to-English translation depends on whether the selected model supports the translations endpoint.
+- Text insertion uses the clipboard, so behavior can depend on the active application.
+- Full microphone names are read through Windows CoreAudio, while recording uses WinMM/NAudio.
