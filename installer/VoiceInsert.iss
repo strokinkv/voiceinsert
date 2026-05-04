@@ -1,5 +1,5 @@
 #define AppName "VoiceInsert"
-#define AppVersion "0.1.0"
+#define AppVersion "1.0.0"
 #define Publisher "strokinkv"
 #define PublishDir "..\artifacts\publish"
 
