@@ -203,6 +203,40 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task TestApiConnectionAsync()
+    {
+        try
+        {
+            SaveCurrentApiFieldsToSelectedProfile();
+            var selected = FindSelectedApiProfile();
+            if (selected is null)
+            {
+                StatusMessage = Texts.FailedToLoadModels;
+                return;
+            }
+
+            var result = await _app.ApiProfileHealthCheck.CheckAsync(
+                selected,
+                ApiKey,
+                CancellationToken.None);
+            StatusMessage = result.Message;
+            if (!result.IsHealthy)
+            {
+                _app.LastError.Set(result.Message);
+                OnPropertyChanged(nameof(LastErrorTime));
+                OnPropertyChanged(nameof(LastErrorMessage));
+            }
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = Texts.FailedToLoadModels;
+            _app.LastError.Set(exception);
+            OnPropertyChanged(nameof(LastErrorTime));
+            OnPropertyChanged(nameof(LastErrorMessage));
+        }
+    }
+
+    [RelayCommand]
     private void AddApiProfile()
     {
         SaveCurrentApiFieldsToSelectedProfile();

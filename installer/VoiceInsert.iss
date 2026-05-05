@@ -1,5 +1,7 @@
 #define AppName "VoiceInsert"
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+#define AppVersion "1.1.0"
+#endif
 #define Publisher "strokinkv"
 #define PublishDir "..\artifacts\publish"
 
@@ -9,6 +11,12 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName}
 AppPublisher={#Publisher}
+AppPublisherURL=https://github.com/strokinkv/VoiceInsert
+AppSupportURL=https://github.com/strokinkv/VoiceInsert/issues
+AppUpdatesURL=https://github.com/strokinkv/VoiceInsert/releases
+VersionInfoVersion={#AppVersion}
+VersionInfoCompany={#Publisher}
+VersionInfoDescription=VoiceInsert Windows speech-to-text utility
 DefaultDirName={userappdata}\VoiceInsert
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes

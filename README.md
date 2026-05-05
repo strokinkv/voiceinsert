@@ -82,6 +82,16 @@ Normal transcription is not translated by VoiceInsert. If the transcription endp
 - Audio is sent only to the API endpoint configured in the selected profile.
 - With the default `wlast` profile, requests go to the local address `http://127.0.0.1:9573`.
 
+## Troubleshooting
+
+- **No text is inserted:** make sure the target app is focused, increase the paste delay in `Settings > Insertion`, and try disabling clipboard restore for apps with custom clipboard handling.
+- **Hotkey does not work:** choose a hotkey with at least one modifier key and avoid shortcuts already used by the active app. `Ctrl+Space` can conflict with IDEs and input methods.
+- **Microphone is missing or silent:** refresh devices, select the full microphone name, and use the microphone level test before recording.
+- **API returns 401:** check the API key for the active profile. Keys are stored separately for each profile.
+- **API returns 404 or 422:** verify that the base URL does not include `/v1/audio/...` and that the server supports OpenAI-compatible `/v1/models`, `/v1/audio/transcriptions`, and `/v1/audio/translations` endpoints.
+- **Speech-to-English translation fails:** the selected model may support transcription but not the translations endpoint. Use `Test connection` and check the app logs.
+- **Installer cannot close the app:** exit VoiceInsert from the tray menu before installing or uninstalling.
+
 ## Limitations
 
 - Windows 11 only.

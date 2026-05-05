@@ -2,7 +2,7 @@ using System.Media;
 
 namespace VoiceInsert.App.Services;
 
-public sealed class SoundService(SettingsService settings)
+public sealed class SoundService(SettingsService settings) : ISoundService
 {
     public void PlayStart() => PlayResource("record-start.wav", SystemSounds.Asterisk);
     public void PlayStop() => PlayResource("record-stop.wav", SystemSounds.Beep);

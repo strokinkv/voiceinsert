@@ -20,4 +20,24 @@ public sealed class HotkeyMatcherTests
         Assert.False(HotkeyMatcher.IsModifierRequirementMet("Ctrl+Space", "Ctrl", false));
         Assert.True(HotkeyMatcher.IsModifierRequirementMet("Ctrl+Space", "Alt", false));
     }
+
+    [Theory]
+    [InlineData("shift+ctrl+f12", "Ctrl+Shift+F12")]
+    [InlineData("alt+y", "Alt+Y")]
+    [InlineData("Ctrl+Return", "Ctrl+Enter")]
+    public void TryNormalize_NormalizesValidHotkeys(string hotkey, string expected)
+    {
+        Assert.True(HotkeyMatcher.TryNormalize(hotkey, out var normalized));
+        Assert.Equal(expected, normalized);
+    }
+
+    [Theory]
+    [InlineData("Y")]
+    [InlineData("Ctrl")]
+    [InlineData("Ctrl+UnknownKey")]
+    [InlineData("Meta+Y")]
+    public void TryNormalize_RejectsUnsafeOrUnknownHotkeys(string hotkey)
+    {
+        Assert.False(HotkeyMatcher.TryNormalize(hotkey, out _));
+    }
 }

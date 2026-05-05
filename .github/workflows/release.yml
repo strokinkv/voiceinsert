@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: Package installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Test
+        run: dotnet test VoiceInsert.slnx --configuration Release
+
+      - name: Build installer
+        shell: pwsh
+        run: ./scripts/package.ps1
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceInsertSetup
+          path: artifacts/installer/VoiceInsertSetup.exe
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          body_path: docs/releases/1.1.0.md
+          files: artifacts/installer/VoiceInsertSetup.exe

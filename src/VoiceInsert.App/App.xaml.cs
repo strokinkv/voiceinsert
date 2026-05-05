@@ -16,6 +16,7 @@ public partial class App : System.Windows.Application
     public SettingsService Settings { get; private set; } = null!;
     public AutostartService Autostart { get; } = new();
     public ModelsClient ModelsClient { get; private set; } = null!;
+    public ApiProfileHealthCheckService ApiProfileHealthCheck { get; private set; } = null!;
     public AudioRecorder Recorder { get; private set; } = null!;
     public VoiceInsertController Controller { get; private set; } = null!;
     public SoundService Sounds { get; private set; } = null!;
@@ -25,7 +26,12 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        _appMutex = new Mutex(true, "VoiceInsertAppMutex");
+        _appMutex = new Mutex(true, "VoiceInsertAppMutex", out var createdNew);
+        if (!createdNew)
+        {
+            Shutdown();
+            return;
+        }
 
         Settings = new SettingsService(Paths, new SecretStore(Paths));
         Settings.Load();
@@ -33,6 +39,7 @@ public partial class App : System.Windows.Application
         Logger = new LoggingService(Paths, LastError);
         Logger.Configure(Settings.Current.LogLevel);
         ModelsClient = new ModelsClient(Settings);
+        ApiProfileHealthCheck = new ApiProfileHealthCheckService(ModelsClient);
         Recorder = new AudioRecorder(Settings);
         var overlay = new RecordingOverlayService(Settings);
         Sounds = new SoundService(Settings);
@@ -77,7 +84,7 @@ public partial class App : System.Windows.Application
         IsShuttingDown = true;
         _hotkey?.Dispose();
         _trayIcon?.Dispose();
-        Recorder.Dispose();
+        Recorder?.Dispose();
         _appMutex?.Dispose();
         Serilog.Log.CloseAndFlush();
         base.OnExit(e);

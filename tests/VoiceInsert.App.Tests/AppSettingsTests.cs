@@ -31,6 +31,36 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void Normalize_ReplacesInvalidAndDuplicateHotkeys()
+    {
+        var settings = new AppSettings
+        {
+            Hotkey = "Y",
+            TranslationHotkey = "Unknown+Key"
+        };
+
+        settings.Normalize();
+
+        Assert.Equal("Ctrl+Space", settings.Hotkey);
+        Assert.Equal("Alt+Y", settings.TranslationHotkey);
+    }
+
+    [Fact]
+    public void Normalize_UsesNonConflictingFallbackForDuplicateTranslationHotkey()
+    {
+        var settings = new AppSettings
+        {
+            Hotkey = "Alt+Y",
+            TranslationHotkey = "Alt+Y"
+        };
+
+        settings.Normalize();
+
+        Assert.Equal("Alt+Y", settings.Hotkey);
+        Assert.Equal("Ctrl+Alt+Y", settings.TranslationHotkey);
+    }
+
+    [Fact]
     public void Normalize_MigratesActiveProfileToWlastForVersionFive()
     {
         var settings = new AppSettings

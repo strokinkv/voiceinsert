@@ -412,7 +412,7 @@
                         <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding RequestTimeoutSeconds}" ToolTip="{Binding Texts.TimeoutSecondsTip}" Margin="0,0,0,10" />
                         <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal">
                             <Button Content="{Binding Texts.LoadModels}" Command="{Binding LoadModelsCommand}" Width="130" Margin="0,0,8,0" ToolTip="{Binding Texts.LoadModelsTip}" />
-                            <Button Content="{Binding Texts.TestConnection}" Command="{Binding LoadModelsCommand}" Width="130" ToolTip="{Binding Texts.TestConnectionTip}" />
+                            <Button Content="{Binding Texts.TestConnection}" Command="{Binding TestApiConnectionCommand}" Width="130" ToolTip="{Binding Texts.TestConnectionTip}" />
                         </StackPanel>
                     </Grid>
                     </ScrollViewer>

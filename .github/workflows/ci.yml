@@ -25,7 +25,20 @@ jobs:
         run: dotnet restore tests/VoiceInsert.App.Tests/VoiceInsert.App.Tests.csproj
 
       - name: Build
-        run: dotnet build tests/VoiceInsert.App.Tests/VoiceInsert.App.Tests.csproj --configuration Release --no-restore
+        run: dotnet build tests/VoiceInsert.App.Tests/VoiceInsert.App.Tests.csproj --configuration Release --no-restore -warnaserror
 
-      - name: Test
-        run: dotnet test tests/VoiceInsert.App.Tests/VoiceInsert.App.Tests.csproj --configuration Release --no-build
+      - name: Format check
+        run: dotnet format VoiceInsert.slnx --verify-no-changes --no-restore
+
+      - name: Dependency audit
+        run: dotnet list VoiceInsert.slnx package --vulnerable --include-transitive
+
+      - name: Test with coverage
+        run: dotnet test tests/VoiceInsert.App.Tests/VoiceInsert.App.Tests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage" --results-directory TestResults
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-results
+          path: TestResults

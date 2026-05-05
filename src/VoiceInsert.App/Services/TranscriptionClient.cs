@@ -6,7 +6,7 @@ using VoiceInsert.App.Models;
 
 namespace VoiceInsert.App.Services;
 
-public sealed class TranscriptionClient(SettingsService settings, HttpClient? httpClient = null)
+public sealed class TranscriptionClient(SettingsService settings, HttpClient? httpClient = null) : ITranscriptionClient
 {
     private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
 
@@ -15,15 +15,9 @@ public sealed class TranscriptionClient(SettingsService settings, HttpClient? ht
         AudioRequestKind requestKind,
         CancellationToken cancellationToken)
     {
-        _httpClient.DefaultRequestHeaders.Authorization = null;
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(settings.Current.RequestTimeoutSeconds));
-
-        if (!string.IsNullOrWhiteSpace(settings.ApiKey))
-        {
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-        }
+        var apiKey = settings.ApiKey;
 
         using var form = new MultipartFormDataContent();
         var audioContent = new ByteArrayContent(wavBytes);
@@ -52,8 +46,18 @@ public sealed class TranscriptionClient(SettingsService settings, HttpClient? ht
         var endpointPath = requestKind == AudioRequestKind.Translation
             ? "/v1/audio/translations"
             : "/v1/audio/transcriptions";
-        var endpoint = settings.Current.BaseUrl.TrimEnd('/') + endpointPath;
-        using var response = await _httpClient.PostAsync(endpoint, form, timeoutCts.Token);
+        var endpoint = ApiEndpointValidator.CreateEndpointUri(settings.Current.BaseUrl, endpointPath);
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = form
+        };
+
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
+        using var response = await _httpClient.SendAsync(request, timeoutCts.Token);
         if (!response.IsSuccessStatusCode)
         {
             var responseBody = await response.Content.ReadAsStringAsync(timeoutCts.Token);

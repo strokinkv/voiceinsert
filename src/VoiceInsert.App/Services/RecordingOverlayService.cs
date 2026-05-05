@@ -4,7 +4,7 @@ using VoiceInsert.App.Views;
 
 namespace VoiceInsert.App.Services;
 
-public sealed class RecordingOverlayService(SettingsService settings)
+public sealed class RecordingOverlayService(SettingsService settings) : IRecordingOverlayService
 {
     private RecordingOverlayWindow? _window;
 

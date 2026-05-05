@@ -1,3 +1,5 @@
+using VoiceInsert.App.Services;
+
 namespace VoiceInsert.App.Models;
 
 public sealed class AppSettings
@@ -43,6 +45,17 @@ public sealed class AppSettings
             && TranslationHotkey.Equals("Ctrl+Alt+E", StringComparison.OrdinalIgnoreCase))
         {
             TranslationHotkey = "Alt+Y";
+        }
+
+        Hotkey = HotkeyMatcher.TryNormalize(Hotkey, out var normalizedHotkey) ? normalizedHotkey : "Ctrl+Space";
+        TranslationHotkey = HotkeyMatcher.TryNormalize(TranslationHotkey, out var normalizedTranslationHotkey)
+            ? normalizedTranslationHotkey
+            : "Alt+Y";
+        if (TranslationHotkey.Equals(Hotkey, StringComparison.OrdinalIgnoreCase))
+        {
+            TranslationHotkey = Hotkey.Equals("Alt+Y", StringComparison.OrdinalIgnoreCase)
+                ? "Ctrl+Alt+Y"
+                : "Alt+Y";
         }
         Temperature = Math.Clamp(Math.Round(Temperature, 1), 0, 1);
         RequestTimeoutSeconds = Math.Clamp(RequestTimeoutSeconds, 5, 600);

@@ -18,15 +18,15 @@ public sealed class ModelsClient(SettingsService settings, HttpClient? httpClien
         string apiKey,
         CancellationToken cancellationToken)
     {
-        _httpClient.DefaultRequestHeaders.Authorization = null;
+        var endpoint = ApiEndpointValidator.CreateEndpointUri(baseUrl, "v1/models");
+        using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
-            _httpClient.DefaultRequestHeaders.Authorization =
+            request.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         }
 
-        var baseUri = new Uri(baseUrl.TrimEnd('/') + "/");
-        using var response = await _httpClient.GetAsync(new Uri(baseUri, "v1/models"), cancellationToken);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);

@@ -4,7 +4,7 @@ using System.IO;
 
 namespace VoiceInsert.App.Services;
 
-public sealed class AudioRecorder(SettingsService settings) : IDisposable
+public sealed class AudioRecorder(SettingsService settings) : IAudioRecorder, IDisposable
 {
     private WaveInEvent? _waveIn;
     private WaveFileWriter? _writer;

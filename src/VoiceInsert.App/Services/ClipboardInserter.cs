@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace VoiceInsert.App.Services;
 
-public sealed class ClipboardInserter(SettingsService settings)
+public sealed class ClipboardInserter(SettingsService settings) : IClipboardInserter
 {
     private const uint KeyEventKeyUp = 0x0002;
     private const ushort VkControl = 0x11;
@@ -12,16 +12,12 @@ public sealed class ClipboardInserter(SettingsService settings)
 
     public async Task InsertAsync(string text, IntPtr targetWindow)
     {
-        object? previousClipboard = await WithClipboardRetryAsync(() =>
+        System.Windows.IDataObject? previousClipboard = await WithClipboardRetryAsync(() =>
             System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                if (settings.Current.RestoreClipboardContent
-                    && System.Windows.Clipboard.ContainsData(System.Windows.DataFormats.UnicodeText))
-                {
-                    return System.Windows.Clipboard.GetData(System.Windows.DataFormats.UnicodeText);
-                }
-
-                return null;
+                return settings.Current.RestoreClipboardContent
+                    ? System.Windows.Clipboard.GetDataObject()
+                    : null;
             }).Task);
 
         await WithClipboardRetryAsync(() =>
@@ -47,7 +43,7 @@ public sealed class ClipboardInserter(SettingsService settings)
             await WithClipboardRetryAsync(() =>
                 System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    System.Windows.Clipboard.SetData(System.Windows.DataFormats.UnicodeText, previousClipboard);
+                    System.Windows.Clipboard.SetDataObject(previousClipboard, true);
                     return true;
                 }).Task);
         }

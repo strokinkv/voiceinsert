@@ -5,12 +5,12 @@ namespace VoiceInsert.App.Services;
 
 public sealed class VoiceInsertController(
     SettingsService settings,
-    AudioRecorder recorder,
-    TranscriptionClient transcriptionClient,
-    ClipboardInserter clipboardInserter,
-    RecordingOverlayService overlay,
-    SoundService sounds,
-    LoggingService logs)
+    IAudioRecorder recorder,
+    ITranscriptionClient transcriptionClient,
+    IClipboardInserter clipboardInserter,
+    IRecordingOverlayService overlay,
+    ISoundService sounds,
+    ILoggingService logs)
 {
     private CancellationTokenSource? _operationCts;
     private IntPtr _targetWindow;
@@ -20,6 +20,7 @@ public sealed class VoiceInsertController(
     private bool _stopOnSilenceForCurrentRecording;
     private string _pendingStopReason = "Manual";
     private AudioRequestKind _requestKind = AudioRequestKind.Transcription;
+    private int _recordingSessionId;
 
     public bool IsRecording => recorder.IsRecording;
 
@@ -66,9 +67,16 @@ public sealed class VoiceInsertController(
             return;
         }
 
+        if (!_operationLock.Wait(0))
+        {
+            logs.Information("Recording start ignored because another voice insertion operation is still running.");
+            return;
+        }
+
         try
         {
             _operationCts = new CancellationTokenSource();
+            var sessionId = Interlocked.Increment(ref _recordingSessionId);
             _targetWindow = GetForegroundWindow();
             _silenceStartedAt = null;
             _autoStopRequested = false;
@@ -81,11 +89,21 @@ public sealed class VoiceInsertController(
             sounds.PlayStart();
             logs.Information($"Recording started. Kind: {_requestKind}. Mode: {settings.Current.RecordingMode}. Silence stop: {_stopOnSilenceForCurrentRecording}.");
 
-            _ = StopAfterMaxDurationAsync(_operationCts.Token);
+            _ = StopAfterMaxDurationAsync(sessionId, _operationCts.Token);
         }
         catch (Exception exception)
         {
+            recorder.LevelChanged -= OnLevelChanged;
+            _operationCts?.Cancel();
+            _operationCts?.Dispose();
+            _operationCts = null;
+            overlay.Hide();
+            _ = StopRecorderAfterStartFailureAsync();
             HandleError(exception, "Failed to start recording.");
+        }
+        finally
+        {
+            _operationLock.Release();
         }
     }
 
@@ -96,8 +114,37 @@ public sealed class VoiceInsertController(
 
     private async Task StopAndTranscribeAsync(string reason)
     {
+        await StopAndTranscribeAsync(reason, null);
+    }
+
+    private async Task StopRecorderAfterStartFailureAsync()
+    {
+        if (!recorder.IsRecording)
+        {
+            return;
+        }
+
+        try
+        {
+            recorder.LevelChanged -= OnLevelChanged;
+            _ = await recorder.StopAsync();
+        }
+        catch (Exception exception)
+        {
+            logs.Error(exception, "Failed to clean up recording after start failure.");
+        }
+    }
+
+    private async Task StopAndTranscribeAsync(string reason, int? expectedSessionId)
+    {
         if (!await _operationLock.WaitAsync(0))
         {
+            return;
+        }
+
+        if (expectedSessionId.HasValue && expectedSessionId.Value != Volatile.Read(ref _recordingSessionId))
+        {
+            _operationLock.Release();
             return;
         }
 
@@ -107,10 +154,14 @@ public sealed class VoiceInsertController(
             return;
         }
 
+        var operationCts = _operationCts;
+        var requestKind = _requestKind;
+        var targetWindow = _targetWindow;
+
         try
         {
             _pendingStopReason = reason;
-            overlay.SetStatus(GetOverlayText(_requestKind == AudioRequestKind.Translation
+            overlay.SetStatus(GetOverlayText(requestKind == AudioRequestKind.Translation
                 ? static texts => texts.OverlayTranslating
                 : static texts => texts.OverlayTranscribing));
             sounds.PlayStop();
@@ -125,8 +176,8 @@ public sealed class VoiceInsertController(
 
             var text = await transcriptionClient.TranscribeAsync(
                 audio,
-                _requestKind,
-                _operationCts?.Token ?? CancellationToken.None);
+                requestKind,
+                operationCts?.Token ?? CancellationToken.None);
             if (string.IsNullOrWhiteSpace(text))
             {
                 throw new InvalidOperationException("Transcription response text is empty.");
@@ -134,8 +185,8 @@ public sealed class VoiceInsertController(
 
             overlay.SetStatus(GetOverlayText(static texts => texts.OverlayInserting));
             logs.Information("Starting clipboard insertion.");
-            await clipboardInserter.InsertAsync(text, _targetWindow);
-            logs.Information($"{_requestKind} inserted.");
+            await clipboardInserter.InsertAsync(text, targetWindow);
+            logs.Information($"{requestKind} inserted.");
         }
         catch (Exception exception)
         {
@@ -143,19 +194,24 @@ public sealed class VoiceInsertController(
         }
         finally
         {
-            _operationCts?.Dispose();
-            _operationCts = null;
+            if (ReferenceEquals(_operationCts, operationCts))
+            {
+                _operationCts?.Cancel();
+                _operationCts?.Dispose();
+                _operationCts = null;
+            }
+
             overlay.Hide();
             _operationLock.Release();
         }
     }
 
-    private async Task StopAfterMaxDurationAsync(CancellationToken cancellationToken)
+    private async Task StopAfterMaxDurationAsync(int sessionId, CancellationToken cancellationToken)
     {
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(settings.Current.MaxRecordingSeconds), cancellationToken);
-            await StopAndTranscribeAsync("MaxDuration");
+            await StopAndTranscribeAsync("MaxDuration", sessionId);
         }
         catch (OperationCanceledException)
         {

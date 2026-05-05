@@ -3,7 +3,7 @@ using VoiceInsert.App.Models;
 
 namespace VoiceInsert.App.Services;
 
-public sealed class LoggingService(AppPaths paths, LastErrorState lastError)
+public sealed class LoggingService(AppPaths paths, LastErrorState lastError) : ILoggingService
 {
     public void Configure(string minimumLevel = "Information")
     {
