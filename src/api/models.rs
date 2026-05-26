@@ -11,6 +11,12 @@ struct ModelsResponse {
     data: Vec<ModelInfo>,
 }
 
+impl ModelsResponse {
+    fn into_models(self) -> Vec<ModelInfo> {
+        self.data
+    }
+}
+
 pub async fn load_models(
     http: &reqwest::Client,
     base_url: &str,
@@ -27,5 +33,28 @@ pub async fn load_models(
         anyhow::bail!("Models API request failed: {}", status.as_u16());
     }
 
-    Ok(response.json::<ModelsResponse>().await?.data)
+    Ok(response.json::<ModelsResponse>().await?.into_models())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ModelsResponse;
+
+    #[test]
+    fn models_response_parses_model_ids() {
+        let response: ModelsResponse = serde_json::from_str(
+            r#"{
+                "data": [
+                    { "id": "whisper-large-v3" },
+                    { "id": "gpt-4o-mini-transcribe" }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        let models = response.into_models();
+
+        assert_eq!(models[0].id, "whisper-large-v3");
+        assert_eq!(models[1].id, "gpt-4o-mini-transcribe");
+    }
 }

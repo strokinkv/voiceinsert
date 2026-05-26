@@ -111,7 +111,6 @@ slint-build = "1.14"
 
 [dev-dependencies]
 tempfile = "3"
-wiremock = "0.6"
 ```
 
 - [ ] **Step 2: Add minimal source modules**
@@ -557,15 +556,14 @@ git commit -m "feat: port settings defaults and localization"
 - Create: `src/api/models.rs`
 - Create: `src/api/transcription.rs`
 - Modify: `src/lib.rs`
-- Create: `tests/api_tests.rs`
+- Test: unit tests inside `src/api/endpoints.rs`, `src/api/models.rs`, and `src/api/transcription.rs`
 
-- [ ] **Step 1: Write failing API tests**
+- [ ] **Step 1: Write failing API unit tests**
 
-Create `tests/api_tests.rs`:
+Add module-level tests in `src/api/endpoints.rs`, `src/api/models.rs`, and `src/api/transcription.rs`:
 
 ```rust
-use voiceinsert::api::endpoints::endpoint;
-use voiceinsert::api::transcription::{sanitize_api_error, AudioRequestKind};
+use super::*;
 
 #[test]
 fn endpoint_joins_base_url_and_path() {
@@ -609,10 +607,10 @@ fn translation_error_mentions_model_without_response_body() {
 Run:
 
 ```powershell
-cargo test --test api_tests
+cargo test api
 ```
 
-Expected: fails because `api` modules do not exist.
+Expected: fails because the API functions are not implemented.
 
 - [ ] **Step 3: Implement endpoint construction and sanitized errors**
 
@@ -781,7 +779,6 @@ pub async fn send_audio(
 Run:
 
 ```powershell
-cargo test --test api_tests
 cargo test
 ```
 
