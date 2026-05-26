@@ -34,6 +34,18 @@ fn default_active_profile_is_ai2npu_without_normalization() {
 }
 
 #[test]
+fn active_profile_falls_back_to_ai2npu_when_profiles_are_empty() {
+    let settings = AppSettings {
+        api_profiles: Vec::new(),
+        active_api_profile_id: "missing".to_string(),
+        ..AppSettings::default()
+    };
+
+    assert_eq!(settings.active_profile().name, "ai2npu");
+    assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
+}
+
+#[test]
 fn default_hotkeys_and_language_match_spec() {
     let settings = AppSettings::default().normalized();
 

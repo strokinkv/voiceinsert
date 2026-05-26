@@ -1,6 +1,7 @@
 use serde::de::{self, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
+use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum RecordingMode {
@@ -228,7 +229,8 @@ impl AppSettings {
         self.api_profiles
             .iter()
             .find(|profile| profile.id == self.active_api_profile_id)
-            .unwrap_or(&self.api_profiles[0])
+            .or_else(|| self.api_profiles.first())
+            .unwrap_or(&DEFAULT_AI2NPU_PROFILE)
     }
 
     fn ensure_profiles(&mut self) {
@@ -298,6 +300,8 @@ fn ai2npu_profile() -> ApiProfile {
         request_timeout_seconds: 120,
     }
 }
+
+static DEFAULT_AI2NPU_PROFILE: LazyLock<ApiProfile> = LazyLock::new(ai2npu_profile);
 
 fn groq_profile() -> ApiProfile {
     ApiProfile {
