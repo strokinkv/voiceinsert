@@ -26,6 +26,14 @@ fn defaults_create_ai2npu_and_groq_profiles() {
 }
 
 #[test]
+fn default_active_profile_is_ai2npu_without_normalization() {
+    let settings = AppSettings::default();
+
+    assert_eq!(settings.active_profile().name, "ai2npu");
+    assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
+}
+
+#[test]
 fn default_hotkeys_and_language_match_spec() {
     let settings = AppSettings::default().normalized();
 
@@ -33,6 +41,64 @@ fn default_hotkeys_and_language_match_spec() {
     assert_eq!(settings.translation_hotkey, "Alt+Y");
     assert_eq!(settings.ui_language, AppLanguage::Russian);
     assert_eq!(settings.recording_mode, RecordingMode::Toggle);
+}
+
+#[test]
+fn partial_camel_case_settings_deserialize_and_normalize_profiles() {
+    let settings: AppSettings = serde_json::from_str(
+        r#"{
+            "settingsVersion": 3,
+            "hotkey": " Alt+Space "
+        }"#,
+    )
+    .unwrap();
+
+    let settings = settings.normalized();
+
+    assert_eq!(settings.settings_version, 8);
+    assert_eq!(settings.hotkey, "Alt+Space");
+    assert_eq!(settings.active_profile().name, "ai2npu");
+    assert!(
+        settings
+            .api_profiles
+            .iter()
+            .any(|profile| profile.name == "groq")
+    );
+}
+
+#[test]
+fn camel_case_settings_deserialize_profiles_and_active_profile() {
+    let settings: AppSettings = serde_json::from_str(
+        r#"{
+            "settingsVersion": 8,
+            "activeApiProfileId": "remote",
+            "apiProfiles": [
+                {
+                    "id": "remote",
+                    "name": "Remote",
+                    "baseUrl": "https://example.test/openai/",
+                    "model": "whisper",
+                    "language": "en",
+                    "temperature": 0.4,
+                    "requestTimeoutSeconds": 45
+                }
+            ],
+            "recordingMode": "Hold",
+            "uiLanguage": "English"
+        }"#,
+    )
+    .unwrap();
+
+    let settings = settings.normalized();
+
+    assert_eq!(settings.active_profile().id, "remote");
+    assert_eq!(
+        settings.active_profile().base_url,
+        "https://example.test/openai/"
+    );
+    assert_eq!(settings.active_profile().request_timeout_seconds, 45);
+    assert_eq!(settings.recording_mode, RecordingMode::Hold);
+    assert_eq!(settings.ui_language, AppLanguage::English);
 }
 
 #[test]
@@ -84,11 +150,13 @@ fn legacy_wlast_profile_migrates_to_ai2npu() {
 
 #[test]
 fn numeric_settings_are_clamped() {
-    let mut settings = AppSettings::default();
-    settings.temperature = 4.2;
-    settings.request_timeout_seconds = 1;
-    settings.silence_timeout_milliseconds = 50;
-    settings.max_recording_seconds = 0;
+    let settings = AppSettings {
+        temperature: 4.2,
+        request_timeout_seconds: 1,
+        silence_timeout_milliseconds: 50,
+        max_recording_seconds: 0,
+        ..AppSettings::default()
+    };
 
     let settings = settings.normalized();
 

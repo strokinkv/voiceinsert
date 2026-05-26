@@ -1,19 +1,126 @@
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Unexpected, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum RecordingMode {
     Toggle,
     Hold,
     SilenceTimeout,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+impl<'de> Deserialize<'de> for RecordingMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserialize_enum(
+            deserializer,
+            &["Toggle", "Hold", "SilenceTimeout"],
+            |value| match value {
+                0 => Some(Self::Toggle),
+                1 => Some(Self::Hold),
+                2 => Some(Self::SilenceTimeout),
+                _ => None,
+            },
+            |value| match value {
+                "Toggle" => Some(Self::Toggle),
+                "Hold" => Some(Self::Hold),
+                "SilenceTimeout" => Some(Self::SilenceTimeout),
+                _ => None,
+            },
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum AppLanguage {
     Russian,
     English,
 }
 
+impl<'de> Deserialize<'de> for AppLanguage {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserialize_enum(
+            deserializer,
+            &["Russian", "English"],
+            |value| match value {
+                0 => Some(Self::Russian),
+                1 => Some(Self::English),
+                _ => None,
+            },
+            |value| match value {
+                "Russian" => Some(Self::Russian),
+                "English" => Some(Self::English),
+                _ => None,
+            },
+        )
+    }
+}
+
+struct EnumVisitor<T> {
+    expected: &'static [&'static str],
+    from_u64: fn(u64) -> Option<T>,
+    from_str: fn(&str) -> Option<T>,
+}
+
+impl<T> Visitor<'_> for EnumVisitor<T> {
+    type Value = T;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "one of {}", self.expected.join(", "))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        (self.from_u64)(value).ok_or_else(|| {
+            E::invalid_value(
+                Unexpected::Unsigned(value),
+                &"a supported enum numeric value",
+            )
+        })
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let value = u64::try_from(value)
+            .map_err(|_| E::invalid_value(Unexpected::Signed(value), &"a non-negative value"))?;
+        self.visit_u64(value)
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        (self.from_str)(value).ok_or_else(|| E::unknown_variant(value, self.expected))
+    }
+}
+
+fn deserialize_enum<'de, D, T>(
+    deserializer: D,
+    expected: &'static [&'static str],
+    from_u64: fn(u64) -> Option<T>,
+    from_str: fn(&str) -> Option<T>,
+) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_any(EnumVisitor {
+        expected,
+        from_u64,
+        from_str,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ApiProfile {
     pub id: String,
     pub name: String,
@@ -24,7 +131,22 @@ pub struct ApiProfile {
     pub request_timeout_seconds: u64,
 }
 
+impl Default for ApiProfile {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            base_url: String::new(),
+            model: String::new(),
+            language: String::new(),
+            temperature: 0.2,
+            request_timeout_seconds: 120,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
     pub settings_version: u32,
     pub active_api_profile_id: String,
@@ -52,8 +174,8 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             settings_version: 8,
-            active_api_profile_id: String::new(),
-            api_profiles: Vec::new(),
+            active_api_profile_id: "ai2npu".to_string(),
+            api_profiles: vec![ai2npu_profile(), groq_profile()],
             hotkey: "Ctrl+Space".to_string(),
             translation_hotkey: "Alt+Y".to_string(),
             recording_mode: RecordingMode::Toggle,
