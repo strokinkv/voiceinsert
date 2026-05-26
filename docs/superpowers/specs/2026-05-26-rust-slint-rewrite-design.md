@@ -102,8 +102,8 @@ The UI layer sends commands to the Rust application state and receives plain dat
 
 It must preserve these defaults:
 
-- active profile `wlast`;
-- `wlast` base URL `http://127.0.0.1:9573`;
+- active profile `ai2npu`;
+- `ai2npu` base URL `http://localhost:9555`;
 - `groq` base URL `https://api.groq.com/openai/`;
 - `groq` model `whisper-large-v3`;
 - transcription hotkey `Ctrl+Space`;
@@ -112,7 +112,7 @@ It must preserve these defaults:
 
 It also handles:
 
-- migration from old `Default` profile to `wlast`;
+- migration from old local `Default` or `wlast` profiles to `ai2npu`;
 - normalization of hotkeys;
 - clamping numeric settings;
 - one shared `Model` field for transcription and translation;
@@ -297,4 +297,3 @@ The rewrite is complete when:
 - installer packaging preserves the current app identity;
 - documentation and scripts no longer reference .NET build commands as the primary path;
 - no logs, tests, docs, or fixtures contain API keys, recognized text, user audio, or local settings.
-

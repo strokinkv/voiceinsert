@@ -33,7 +33,7 @@ During recording, VoiceInsert shows a compact window with a scrolling signal amp
 
 VoiceInsert creates two API profiles on first launch:
 
-- `wlast`, first and primary profile: `http://127.0.0.1:9573`
+- `ai2npu`, first and primary profile: `http://localhost:9555`
 - `groq`: `https://api.groq.com/openai/`, without an API key
 
 Model discovery:
@@ -80,7 +80,7 @@ Normal transcription is not translated by VoiceInsert. If the transcription endp
 - Logs do not include audio, recognized text, or API keys.
 - API keys are stored through Windows DPAPI separately for each profile.
 - Audio is sent only to the API endpoint configured in the selected profile.
-- With the default `wlast` profile, requests go to the local address `http://127.0.0.1:9573`.
+- With the default `ai2npu` profile, requests go to the local address `http://localhost:9555`.
 
 ## Troubleshooting
 
