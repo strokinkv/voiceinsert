@@ -1,7 +1,10 @@
 use serde::de::{self, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
+use std::fs;
 use std::sync::LazyLock;
+
+use crate::paths::AppPaths;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum RecordingMode {
@@ -331,4 +334,21 @@ fn normalize_hotkey_or(value: &str, fallback: &str) -> String {
 
 fn clamp_f64(value: f64, min: f64, max: f64) -> f64 {
     value.max(min).min(max)
+}
+
+pub fn load_settings(paths: &AppPaths) -> anyhow::Result<AppSettings> {
+    let path = paths.settings_path();
+    if !path.exists() {
+        return Ok(AppSettings::default().normalized());
+    }
+
+    let json = fs::read_to_string(path)?;
+    Ok(serde_json::from_str::<AppSettings>(&json)?.normalized())
+}
+
+pub fn save_settings(paths: &AppPaths, settings: &AppSettings) -> anyhow::Result<()> {
+    fs::create_dir_all(paths.app_data_dir())?;
+    let json = serde_json::to_string_pretty(settings)?;
+    fs::write(paths.settings_path(), json)?;
+    Ok(())
 }
