@@ -12,3 +12,4 @@ pub mod secrets;
 pub mod settings;
 pub mod sounds;
 pub mod tray;
+pub mod ui;

@@ -12,6 +12,7 @@ use crate::paths::AppPaths;
 use crate::settings::{AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
+use crate::ui::UiController;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::time::Duration;
@@ -33,6 +34,7 @@ pub struct AppRuntime {
     tokio: tokio::runtime::Runtime,
     state: VoiceInsertState,
     tray: RuntimeTray,
+    ui: UiController,
     hotkeys: GlobalHotkeyEvents,
     recorder: Option<Recorder>,
     level_rx: Option<Receiver<f32>>,
@@ -62,6 +64,7 @@ impl AppRuntime {
             settings.max_recording_seconds.saturating_mul(1000),
         );
         let tray = RuntimeTray::new(settings.ui_language)?;
+        let ui = UiController::new();
         let hotkeys = GlobalHotkeyEvents::register(&settings.hotkey, &settings.translation_hotkey)?;
         let clipboard = ClipboardInserter {
             restore_clipboard: settings.restore_clipboard_content,
@@ -83,6 +86,7 @@ impl AppRuntime {
             tokio,
             state,
             tray,
+            ui,
             hotkeys,
             recorder: None,
             level_rx: None,
@@ -115,6 +119,7 @@ impl AppRuntime {
         match command {
             TrayCommand::Settings => {
                 tracing::info!("settings command received");
+                self.ui.open_settings(&self.settings)?;
                 Ok(false)
             }
             TrayCommand::Exit => {
