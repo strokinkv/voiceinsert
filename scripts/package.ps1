@@ -9,26 +9,24 @@ $candidatePaths = @(
 
 $iscc = $candidatePaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 
-if (-not $iscc)
-{
+if (-not $iscc) {
     $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
-    if ($command)
-    {
+    if ($command) {
         $iscc = $command.Source
     }
 }
 
-if (-not $iscc)
-{
+if (-not $iscc) {
     throw "Inno Setup compiler not found. Install Inno Setup 6 or make ISCC.exe available in PATH."
 }
 
-[xml]$buildProps = Get-Content -LiteralPath (Join-Path $root "Directory.Build.props")
-$appVersion = $buildProps.Project.PropertyGroup.Version
-if ([string]::IsNullOrWhiteSpace($appVersion))
-{
-    throw "Version not found in Directory.Build.props."
+$cargoToml = Get-Content -LiteralPath (Join-Path $root "Cargo.toml")
+$versionLine = $cargoToml | Where-Object { $_ -match '^version\s*=\s*"([^"]+)"' } | Select-Object -First 1
+if (-not $versionLine) {
+    throw "Version not found in Cargo.toml."
 }
+
+$appVersion = [regex]::Match($versionLine, '^version\s*=\s*"([^"]+)"').Groups[1].Value
 
 & (Join-Path $PSScriptRoot "publish.ps1")
 & $iscc "/DAppVersion=$appVersion" (Join-Path $root "installer\VoiceInsert.iss")

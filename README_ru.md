@@ -18,6 +18,18 @@ VoiceInsert - фоновая утилита для Windows 11. Она запис
 .\artifacts\installer\VoiceInsertSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
+## Разработка
+
+VoiceInsert переписывается как Windows-приложение на Rust с UI на Slint.
+
+```powershell
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+cargo build --release
+.\scripts\package.ps1
+```
+
 ## Как пользоваться
 
 1. Запусти VoiceInsert. Приложение появится в системном трее.

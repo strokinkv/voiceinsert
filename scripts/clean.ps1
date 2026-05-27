@@ -3,6 +3,7 @@ $root = Split-Path -Parent $PSScriptRoot
 
 $paths = @(
     "artifacts",
+    "target",
     ".dotnet",
     ".appdata",
     ".localappdata",

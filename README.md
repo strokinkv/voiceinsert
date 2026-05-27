@@ -18,6 +18,18 @@ Silent install:
 .\artifacts\installer\VoiceInsertSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
+## Development
+
+VoiceInsert is being rewritten as a Rust Windows application with a Slint UI.
+
+```powershell
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+cargo build --release
+.\scripts\package.ps1
+```
+
 ## How to Use
 
 1. Start VoiceInsert. The app appears in the system tray.

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Started the Rust + Slint rewrite on the `rewrite-rust-slint` branch.
+- Changed the default local API profile from `wlast` to `ai2npu` at `http://localhost:9555`.
+
 ## 1.1.0
 
 - Improved recording lifecycle reliability: stale max-duration timers can no longer stop a newer recording session.
