@@ -65,8 +65,8 @@ fn focus_window(_target_window: isize) {}
 #[cfg(windows)]
 fn send_ctrl_v() {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY,
-        VK_CONTROL, VK_V,
+        INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput,
+        VIRTUAL_KEY, VK_CONTROL, VK_V,
     };
 
     let inputs = [
@@ -80,7 +80,7 @@ fn send_ctrl_v() {
         let _ = SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
     }
 
-    fn keyboard_input(key: VIRTUAL_KEY, flags: KEYEVENTF_KEYUP) -> INPUT {
+    fn keyboard_input(key: VIRTUAL_KEY, flags: KEYBD_EVENT_FLAGS) -> INPUT {
         INPUT {
             r#type: INPUT_KEYBOARD,
             Anonymous: INPUT_0 {

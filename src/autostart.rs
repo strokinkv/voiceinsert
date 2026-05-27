@@ -3,6 +3,7 @@ const VALUE_NAME: &str = "VoiceInsert";
 
 #[cfg(windows)]
 pub fn is_enabled() -> anyhow::Result<bool> {
+    use windows::Win32::Foundation::ERROR_SUCCESS;
     use windows::Win32::System::Registry::{
         HKEY_CURRENT_USER, KEY_READ, REG_VALUE_TYPE, RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
     };
@@ -13,13 +14,16 @@ pub fn is_enabled() -> anyhow::Result<bool> {
     let value_name = wide_null(VALUE_NAME);
 
     unsafe {
-        RegOpenKeyExW(
+        let result = RegOpenKeyExW(
             HKEY_CURRENT_USER,
             PCWSTR(run_key.as_ptr()),
-            0,
+            Some(0),
             KEY_READ,
             &mut key,
-        )?;
+        );
+        if result != ERROR_SUCCESS {
+            return Ok(false);
+        }
 
         let mut value_type = REG_VALUE_TYPE::default();
         let result = RegQueryValueExW(
@@ -32,7 +36,7 @@ pub fn is_enabled() -> anyhow::Result<bool> {
         );
         let _ = RegCloseKey(key);
 
-        Ok(result.is_ok())
+        Ok(result == ERROR_SUCCESS)
     }
 }
 
@@ -49,17 +53,18 @@ pub fn set_enabled(enabled: bool, exe_path: &std::path::Path) -> anyhow::Result<
     let value_name = wide_null(VALUE_NAME);
 
     unsafe {
-        RegCreateKeyExW(
+        let result = RegCreateKeyExW(
             HKEY_CURRENT_USER,
             PCWSTR(run_key.as_ptr()),
-            0,
+            Some(0),
             None,
             Default::default(),
             KEY_SET_VALUE,
             None,
             &mut key,
             None,
-        )?;
+        );
+        ensure_success(result, "failed to open autostart registry key")?;
 
         if enabled {
             let command = format!("\"{}\"", exe_path.display());
@@ -67,7 +72,14 @@ pub fn set_enabled(enabled: bool, exe_path: &std::path::Path) -> anyhow::Result<
                 .iter()
                 .flat_map(|value| value.to_le_bytes())
                 .collect::<Vec<u8>>();
-            RegSetValueExW(key, PCWSTR(value_name.as_ptr()), 0, REG_SZ, Some(&bytes))?;
+            let result = RegSetValueExW(
+                key,
+                PCWSTR(value_name.as_ptr()),
+                Some(0),
+                REG_SZ,
+                Some(&bytes),
+            );
+            ensure_success(result, "failed to set autostart registry value")?;
         } else {
             let _ = RegDeleteValueW(key, PCWSTR(value_name.as_ptr()));
         }
@@ -76,6 +88,20 @@ pub fn set_enabled(enabled: bool, exe_path: &std::path::Path) -> anyhow::Result<
     }
 
     Ok(())
+}
+
+#[cfg(windows)]
+fn ensure_success(
+    result: windows::Win32::Foundation::WIN32_ERROR,
+    context: &str,
+) -> anyhow::Result<()> {
+    use windows::Win32::Foundation::ERROR_SUCCESS;
+
+    if result == ERROR_SUCCESS {
+        Ok(())
+    } else {
+        anyhow::bail!("{context}: Win32 error {}", result.0)
+    }
 }
 
 #[cfg(not(windows))]
