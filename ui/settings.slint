@@ -1,4 +1,65 @@
-import { LineEdit } from "std-widgets.slint";
+component Field inherits Rectangle {
+    in-out property <string> value: "";
+
+    height: 34px;
+    background: #ffffff;
+    border-color: #c8d4ce;
+    border-width: 1px;
+    border-radius: 4px;
+
+    TextInput {
+        text <=> root.value;
+        x: 10px;
+        y: 0;
+        width: parent.width - 20px;
+        height: parent.height;
+        color: #1f2a28;
+        font-size: 14px;
+        vertical-alignment: center;
+        single-line: true;
+    }
+}
+
+component NavItem inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> selected: false;
+
+    height: 30px;
+    background: selected ? #e6f2ee : transparent;
+    border-radius: 4px;
+
+    Text {
+        text: root.label;
+        color: selected ? #1f2a28 : #66746e;
+        font-size: 13px;
+        font-weight: selected ? 600 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component ActionButton inherits Rectangle {
+    in property <string> label: "";
+    in property <brush> fill: #cfddd6;
+    callback clicked();
+
+    width: 104px;
+    height: 34px;
+    background: touch.pressed ? #9ccfc4 : fill;
+    border-radius: 4px;
+
+    Text {
+        text: root.label;
+        color: #10231f;
+        font-size: 14px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
 
 export component SettingsWindow inherits Window {
     in-out property <string> status-text: "";
@@ -40,13 +101,13 @@ export component SettingsWindow inherits Window {
 
         HorizontalLayout {
             spacing: 8px;
-            Text { text: "General"; }
-            Text { text: "Hotkeys"; }
-            Text { text: "Audio"; }
-            Text { text: "API"; }
-            Text { text: "Insertion"; }
-            Text { text: "Sounds"; }
-            Text { text: "Logs"; }
+            NavItem { label: "General"; selected: true; }
+            NavItem { label: "Hotkeys"; }
+            NavItem { label: "Audio"; }
+            NavItem { label: "API"; }
+            NavItem { label: "Insertion"; }
+            NavItem { label: "Sounds"; }
+            NavItem { label: "Logs"; }
         }
 
         Rectangle {
@@ -62,16 +123,16 @@ export component SettingsWindow inherits Window {
                 Text { text: root.profile-line; color: #66746e; }
 
                 Text { text: "API"; color: #66746e; }
-                LineEdit { text <=> root.api-base-url; }
+                Field { value <=> root.api-base-url; }
 
                 Text { text: "Model"; color: #66746e; }
-                LineEdit { text <=> root.model-name; }
+                Field { value <=> root.model-name; }
 
                 Text { text: "Transcription hotkey"; color: #66746e; }
-                LineEdit { text <=> root.transcription-hotkey; }
+                Field { value <=> root.transcription-hotkey; }
 
                 Text { text: "Translation hotkey"; color: #66746e; }
-                LineEdit { text <=> root.translation-hotkey; }
+                Field { value <=> root.translation-hotkey; }
 
                 Text { text: root.recording-mode-line; color: #66746e; }
             }
@@ -84,33 +145,15 @@ export component SettingsWindow inherits Window {
                 color: #66746e;
                 horizontal-stretch: 1;
             }
-            TouchArea {
+            ActionButton {
+                label: "Save";
+                fill: #51b3a2;
                 clicked => { root.save(); }
-                Rectangle {
-                    background: #51b3a2;
-                    width: 96px;
-                    height: 32px;
-                    Text {
-                        text: "Save";
-                        color: #10231f;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-                }
             }
-            TouchArea {
+            ActionButton {
+                label: "Close";
+                fill: #cfddd6;
                 clicked => { root.close(); }
-                Rectangle {
-                    background: #cfddd6;
-                    width: 96px;
-                    height: 32px;
-                    Text {
-                        text: "Close";
-                        color: #10231f;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-                }
             }
         }
     }
