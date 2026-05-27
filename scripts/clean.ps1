@@ -4,15 +4,9 @@ $root = Split-Path -Parent $PSScriptRoot
 $paths = @(
     "artifacts",
     "target",
-    ".dotnet",
     ".appdata",
     ".localappdata",
-    ".nuget",
-    ".tmp",
-    "src\VoiceInsert.App\bin",
-    "src\VoiceInsert.App\obj",
-    "tests\VoiceInsert.App.Tests\bin",
-    "tests\VoiceInsert.App.Tests\obj"
+    ".tmp"
 )
 
 foreach ($path in $paths) {

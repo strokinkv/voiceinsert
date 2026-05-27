@@ -13,14 +13,9 @@ Debug/
 *.nupkg
 *.snupkg
 
-# Local .NET/NuGet sandbox state
-.dotnet/
+# Local sandbox state
 .appdata/
 .localappdata/
-.nuget/
-.packages/
-packages/
-project.lock.json
 
 # Local smoke-test projects
 .tmp/
@@ -36,7 +31,6 @@ temp/
 *.user
 *.suo
 *.userosscache
-*.sln.docstates
 
 # Test output
 TestResults/

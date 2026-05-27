@@ -2,16 +2,16 @@
 
 ## 1. Назначение
 
-VoiceInsert - фоновая Windows 11 утилита на C#. Приложение записывает речь с микрофона по глобальной горячей клавише, отправляет WAV-аудио в OpenAI-совместимый audio API и вставляет полученный текст в активное окно через буфер обмена.
+VoiceInsert - фоновая Windows 11 утилита на Rust. Приложение записывает речь с микрофона по глобальной горячей клавише, отправляет WAV-аудио в OpenAI-совместимый audio API и вставляет полученный текст в активное окно через буфер обмена.
 
 Приложение работает из системного трея. Основное окно - компактные настройки.
 
 ## 2. Платформа
 
 - ОС: Windows 11.
-- Язык: C#.
-- UI: WPF.
-- Tray icon: Windows Forms NotifyIcon.
+- Язык: Rust.
+- UI: Slint.
+- Tray icon: Windows tray integration.
 - Установка: Inno Setup installer.
 - Директория установки: `%APPDATA%\VoiceInsert`.
 - Исполняемый файл: `VoiceInsert.exe`.
@@ -365,7 +365,7 @@ GUI поддерживает:
 - `SECURITY.md`;
 - `.editorconfig`;
 - `.gitattributes`;
-- `.gitignore`, исключающий build output, local .NET state, NuGet cache, installer artifacts и временные проекты;
+- `.gitignore`, исключающий build output, local app state, installer artifacts и временные проекты;
 - GitHub Actions workflow для build/test на Windows;
 - issue templates и pull request template;
 - отсутствие API keys, пользовательских логов, аудио, распознанного текста и локальных настроек.

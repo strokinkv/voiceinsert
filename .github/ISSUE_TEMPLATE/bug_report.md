@@ -10,7 +10,7 @@ assignees: ""
 
 - Windows version:
 - VoiceInsert version:
-- API profile type: wlast / groq / other
+- API profile type: ai2npu / groq / other
 
 ## Steps to Reproduce
 
