@@ -3,7 +3,13 @@ use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError
 
 use crate::api::transcription::AudioRequestKind;
 use crate::audio::levels::should_stop_on_silence;
+use crate::hotkeys::service::{GlobalHotkeyEvents, HotkeyAction, HotkeyEvents};
+use crate::logging::LastErrorState;
+use crate::paths::AppPaths;
 use crate::settings::RecordingMode;
+use crate::sounds::{SoundKind, SoundService};
+use crate::tray::{RuntimeTray, TrayCommand, TrayState};
+use std::time::Duration;
 
 pub fn run() -> anyhow::Result<()> {
     let _instance = SingleInstanceGuard::acquire("VoiceInsertAppMutex")?;
@@ -11,8 +17,141 @@ pub fn run() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    Ok(())
+    let runtime = AppRuntime::initialize()?;
+    runtime.run()
 }
+
+pub struct AppRuntime {
+    state: VoiceInsertState,
+    tray: RuntimeTray,
+    hotkeys: GlobalHotkeyEvents,
+    sounds: SoundService,
+    last_error: LastErrorState,
+}
+
+impl AppRuntime {
+    pub fn initialize() -> anyhow::Result<Self> {
+        let paths = AppPaths::new()?;
+        let settings = crate::settings::load_settings(&paths)?;
+        crate::logging::init(&paths, &settings.log_level)?;
+
+        let active_profile = settings.active_profile();
+        tracing::info!(
+            profile = %active_profile.name,
+            base_url = %active_profile.base_url,
+            "starting VoiceInsert"
+        );
+
+        let state = VoiceInsertState::new(
+            settings.recording_mode,
+            f32::from(settings.silence_threshold_percent) / 100.0,
+            settings.silence_timeout_milliseconds,
+            settings.max_recording_seconds.saturating_mul(1000),
+        );
+        let tray = RuntimeTray::new(settings.ui_language)?;
+        let hotkeys = GlobalHotkeyEvents::register(&settings.hotkey, &settings.translation_hotkey)?;
+        let sounds = SoundService {
+            enabled: settings.enable_sounds,
+        };
+
+        Ok(Self {
+            state,
+            tray,
+            hotkeys,
+            sounds,
+            last_error: LastErrorState::default(),
+        })
+    }
+
+    pub fn run(mut self) -> anyhow::Result<()> {
+        loop {
+            pump_platform_events();
+
+            if let Some(command) = self.tray.next_command()
+                && self.handle_tray_command(command)?
+            {
+                return Ok(());
+            }
+
+            if let Some(action) = self.hotkeys.next_event() {
+                self.handle_hotkey_action(action);
+            }
+
+            std::thread::sleep(Duration::from_millis(16));
+        }
+    }
+
+    fn handle_tray_command(&mut self, command: TrayCommand) -> anyhow::Result<bool> {
+        match command {
+            TrayCommand::Settings => {
+                tracing::info!("settings command received");
+                Ok(false)
+            }
+            TrayCommand::Exit => {
+                tracing::info!("exit command received");
+                Ok(true)
+            }
+        }
+    }
+
+    fn handle_hotkey_action(&mut self, action: HotkeyAction) {
+        let command = match action {
+            HotkeyAction::TranscribePressed => {
+                self.state.hotkey_pressed(AudioRequestKind::Transcription)
+            }
+            HotkeyAction::TranslatePressed => {
+                self.state.hotkey_pressed(AudioRequestKind::Translation)
+            }
+            HotkeyAction::Released => self.state.hotkey_released(),
+        };
+
+        if let Err(error) = self.apply_state_command(command) {
+            let message = error.to_string();
+            self.last_error.set(message.clone());
+            tracing::error!(%message, "failed to handle hotkey action");
+            self.state.mark_error();
+            self.tray.set_state(TrayState::Error);
+            let _ = self.sounds.play(SoundKind::Error);
+        }
+    }
+
+    fn apply_state_command(&mut self, command: StateCommand) -> anyhow::Result<()> {
+        match command {
+            StateCommand::None => {}
+            StateCommand::StartRecording(kind) => {
+                tracing::info!(?kind, "recording started");
+                self.tray.set_state(TrayState::Recording);
+                self.sounds.play(SoundKind::Start)?;
+            }
+            StateCommand::StopAndTranscribe(kind) => {
+                tracing::info!(?kind, "recording stopped");
+                self.tray.set_state(TrayState::Transcribing);
+                self.sounds.play(SoundKind::Stop)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+fn pump_platform_events() {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, TranslateMessage,
+    };
+
+    unsafe {
+        let mut message = MSG::default();
+        while PeekMessageW(&mut message, HWND(std::ptr::null_mut()), 0, 0, PM_REMOVE).as_bool() {
+            let _ = TranslateMessage(&message);
+            DispatchMessageW(&message);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn pump_platform_events() {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationState {

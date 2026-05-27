@@ -1,6 +1,9 @@
 use crate::i18n;
 use crate::settings::AppLanguage;
 
+const SETTINGS_MENU_ID: &str = "voiceinsert-settings";
+const EXIT_MENU_ID: &str = "voiceinsert-exit";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayState {
     Idle,
@@ -60,6 +63,97 @@ impl TrayService {
     pub fn set_state(&mut self, state: TrayState) {
         self.state = state;
     }
+}
+
+pub struct RuntimeTray {
+    _tray_icon: tray_icon::TrayIcon,
+    _menu: tray_icon::menu::Menu,
+    settings_item: tray_icon::menu::MenuItem,
+    exit_item: tray_icon::menu::MenuItem,
+    service: TrayService,
+}
+
+impl RuntimeTray {
+    pub fn new(language: AppLanguage) -> anyhow::Result<Self> {
+        let service = TrayService::new(language);
+        let menu = tray_icon::menu::Menu::new();
+        let settings_item = tray_icon::menu::MenuItem::with_id(
+            SETTINGS_MENU_ID,
+            service.labels().settings.as_str(),
+            true,
+            None,
+        );
+        let exit_item = tray_icon::menu::MenuItem::with_id(
+            EXIT_MENU_ID,
+            service.labels().exit.as_str(),
+            true,
+            None,
+        );
+
+        menu.append(&settings_item)?;
+        menu.append(&tray_icon::menu::PredefinedMenuItem::separator())?;
+        menu.append(&exit_item)?;
+
+        let tray_icon = tray_icon::TrayIconBuilder::new()
+            .with_tooltip("VoiceInsert")
+            .with_menu(Box::new(menu.clone()))
+            .with_icon(default_icon()?)
+            .build()?;
+
+        Ok(Self {
+            _tray_icon: tray_icon,
+            _menu: menu,
+            settings_item,
+            exit_item,
+            service,
+        })
+    }
+
+    pub fn next_command(&mut self) -> Option<TrayCommand> {
+        let event = tray_icon::menu::MenuEvent::receiver().try_recv().ok()?;
+        if event.id == *self.settings_item.id() {
+            Some(TrayCommand::Settings)
+        } else if event.id == *self.exit_item.id() {
+            Some(TrayCommand::Exit)
+        } else {
+            None
+        }
+    }
+
+    pub fn set_language(&mut self, language: AppLanguage) {
+        self.service.set_language(language);
+        self.settings_item
+            .set_text(self.service.labels().settings.as_str());
+        self.exit_item.set_text(self.service.labels().exit.as_str());
+    }
+
+    pub fn set_state(&mut self, state: TrayState) {
+        self.service.set_state(state);
+    }
+
+    pub fn state(&self) -> TrayState {
+        self.service.state()
+    }
+}
+
+fn default_icon() -> anyhow::Result<tray_icon::Icon> {
+    const SIZE: u32 = 32;
+    let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
+
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let dx = x as i32 - 15;
+            let dy = y as i32 - 15;
+            let inside = dx * dx + dy * dy <= 14 * 14;
+            if inside {
+                rgba.extend_from_slice(&[0x51, 0xb3, 0xa2, 0xff]);
+            } else {
+                rgba.extend_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+    }
+
+    Ok(tray_icon::Icon::from_rgba(rgba, SIZE, SIZE)?)
 }
 
 #[cfg(test)]
