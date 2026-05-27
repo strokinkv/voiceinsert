@@ -1,5 +1,11 @@
 export component SettingsWindow inherits Window {
     in-out property <string> status-text: "";
+    in-out property <string> profile-line: "";
+    in-out property <string> api-line: "";
+    in-out property <string> model-line: "";
+    in-out property <string> transcription-hotkey-line: "";
+    in-out property <string> translation-hotkey-line: "";
+    in-out property <string> recording-mode-line: "";
     in-out property <int> selected-page: 0;
 
     callback save();
@@ -51,8 +57,12 @@ export component SettingsWindow inherits Window {
                 spacing: 8px;
 
                 Text { text: "Settings"; color: #1f2a28; }
-                Text { text: "Profile: ai2npu"; color: #66746e; }
-                Text { text: "Model, hotkeys, audio device, insertion, sounds, and logs are wired from Rust."; color: #66746e; }
+                Text { text: root.profile-line; color: #66746e; }
+                Text { text: root.api-line; color: #66746e; }
+                Text { text: root.model-line; color: #66746e; }
+                Text { text: root.transcription-hotkey-line; color: #66746e; }
+                Text { text: root.translation-hotkey-line; color: #66746e; }
+                Text { text: root.recording-mode-line; color: #66746e; }
             }
         }
 

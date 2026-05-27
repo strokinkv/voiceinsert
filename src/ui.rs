@@ -41,6 +41,24 @@ impl UiController {
         };
 
         let profile = settings.active_profile();
+        window.set_profile_line(SharedString::from(format!("Profile: {}", profile.name)));
+        window.set_api_line(SharedString::from(format!("API: {}", profile.base_url)));
+        window.set_model_line(SharedString::from(format!(
+            "Model: {}",
+            model_label(&profile.model)
+        )));
+        window.set_transcription_hotkey_line(SharedString::from(format!(
+            "Transcription: {}",
+            settings.hotkey
+        )));
+        window.set_translation_hotkey_line(SharedString::from(format!(
+            "Translation: {}",
+            settings.translation_hotkey
+        )));
+        window.set_recording_mode_line(SharedString::from(format!(
+            "Recording: {:?}",
+            settings.recording_mode
+        )));
         window.set_status_text(SharedString::from(format!(
             "Profile: {} ({})",
             profile.name, profile.base_url
@@ -65,6 +83,15 @@ impl UiController {
             }
         }
         commands
+    }
+}
+
+fn model_label(model: &str) -> &str {
+    let trimmed = model.trim();
+    if trimmed.is_empty() {
+        "whisper-large-v3"
+    } else {
+        trimmed
     }
 }
 
@@ -105,4 +132,15 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
     window.on_clear_logs(move || {
         let _ = command_tx.send(UiCommand::ClearLogs);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::model_label;
+
+    #[test]
+    fn empty_model_label_uses_default_transcription_model() {
+        assert_eq!(model_label(""), "whisper-large-v3");
+        assert_eq!(model_label(" custom "), "custom");
+    }
 }
