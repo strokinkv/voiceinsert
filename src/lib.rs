@@ -1,6 +1,7 @@
 pub mod api;
 pub mod app;
 pub mod audio;
+pub mod autostart;
 pub mod clipboard;
 pub mod hotkeys;
 pub mod i18n;
