@@ -13,7 +13,9 @@ use crate::settings::{AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
 use crate::ui::UiController;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::time::Duration;
 
@@ -96,23 +98,45 @@ impl AppRuntime {
         })
     }
 
-    pub fn run(mut self) -> anyhow::Result<()> {
-        loop {
-            pump_platform_events();
+    pub fn run(self) -> anyhow::Result<()> {
+        let runtime = Rc::new(RefCell::new(self));
+        let timer = slint::Timer::default();
+        let runtime_for_tick = Rc::clone(&runtime);
 
-            if let Some(command) = self.tray.next_command()
-                && self.handle_tray_command(command)?
-            {
-                return Ok(());
-            }
+        timer.start(
+            slint::TimerMode::Repeated,
+            Duration::from_millis(16),
+            move || runtime_for_tick.borrow_mut().tick(),
+        );
 
-            if let Some(action) = self.hotkeys.next_event() {
-                self.handle_hotkey_action(action);
-            }
+        slint::run_event_loop_until_quit()?;
+        Ok(())
+    }
 
-            self.process_level_events();
-            std::thread::sleep(Duration::from_millis(16));
+    fn tick(&mut self) {
+        if let Err(error) = self.try_tick() {
+            let message = error.to_string();
+            self.last_error.set(message.clone());
+            tracing::error!(%message, "runtime tick failed");
+            self.state.mark_error();
+            self.tray.set_state(TrayState::Error);
+            let _ = self.sounds.play(SoundKind::Error);
         }
+    }
+
+    fn try_tick(&mut self) -> anyhow::Result<()> {
+        if let Some(command) = self.tray.next_command()
+            && self.handle_tray_command(command)?
+        {
+            slint::quit_event_loop()?;
+        }
+
+        if let Some(action) = self.hotkeys.next_event() {
+            self.handle_hotkey_action(action);
+        }
+
+        self.process_level_events();
+        Ok(())
     }
 
     fn handle_tray_command(&mut self, command: TrayCommand) -> anyhow::Result<bool> {
@@ -293,25 +317,6 @@ fn active_window() -> Option<isize> {
 fn active_window() -> Option<isize> {
     None
 }
-
-#[cfg(windows)]
-fn pump_platform_events() {
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, TranslateMessage,
-    };
-
-    unsafe {
-        let mut message = MSG::default();
-        while PeekMessageW(&mut message, HWND(std::ptr::null_mut()), 0, 0, PM_REMOVE).as_bool() {
-            let _ = TranslateMessage(&message);
-            DispatchMessageW(&message);
-        }
-    }
-}
-
-#[cfg(not(windows))]
-fn pump_platform_events() {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationState {
