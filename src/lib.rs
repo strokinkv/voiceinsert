@@ -1,9 +1,12 @@
 pub mod api;
 pub mod app;
 pub mod audio;
+pub mod clipboard;
 pub mod hotkeys;
 pub mod i18n;
 pub mod logging;
 pub mod paths;
 pub mod secrets;
 pub mod settings;
+pub mod sounds;
+pub mod tray;
