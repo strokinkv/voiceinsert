@@ -1,10 +1,12 @@
+import { LineEdit } from "std-widgets.slint";
+
 export component SettingsWindow inherits Window {
     in-out property <string> status-text: "";
     in-out property <string> profile-line: "";
-    in-out property <string> api-line: "";
-    in-out property <string> model-line: "";
-    in-out property <string> transcription-hotkey-line: "";
-    in-out property <string> translation-hotkey-line: "";
+    in-out property <string> api-base-url: "";
+    in-out property <string> model-name: "";
+    in-out property <string> transcription-hotkey: "";
+    in-out property <string> translation-hotkey: "";
     in-out property <string> recording-mode-line: "";
     in-out property <int> selected-page: 0;
 
@@ -58,10 +60,19 @@ export component SettingsWindow inherits Window {
 
                 Text { text: "Settings"; color: #1f2a28; }
                 Text { text: root.profile-line; color: #66746e; }
-                Text { text: root.api-line; color: #66746e; }
-                Text { text: root.model-line; color: #66746e; }
-                Text { text: root.transcription-hotkey-line; color: #66746e; }
-                Text { text: root.translation-hotkey-line; color: #66746e; }
+
+                Text { text: "API"; color: #66746e; }
+                LineEdit { text <=> root.api-base-url; }
+
+                Text { text: "Model"; color: #66746e; }
+                LineEdit { text <=> root.model-name; }
+
+                Text { text: "Transcription hotkey"; color: #66746e; }
+                LineEdit { text <=> root.transcription-hotkey; }
+
+                Text { text: "Translation hotkey"; color: #66746e; }
+                LineEdit { text <=> root.translation-hotkey; }
+
                 Text { text: root.recording-mode-line; color: #66746e; }
             }
         }

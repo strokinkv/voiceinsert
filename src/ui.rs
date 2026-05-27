@@ -13,6 +13,14 @@ pub enum UiCommand {
     ClearLogs,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingsEdit {
+    pub base_url: String,
+    pub model: String,
+    pub transcription_hotkey: String,
+    pub translation_hotkey: String,
+}
+
 pub struct UiController {
     settings_window: Option<SettingsWindow>,
     recording_overlay: Option<RecordingOverlay>,
@@ -44,19 +52,10 @@ impl UiController {
 
         let profile = settings.active_profile();
         window.set_profile_line(SharedString::from(format!("Profile: {}", profile.name)));
-        window.set_api_line(SharedString::from(format!("API: {}", profile.base_url)));
-        window.set_model_line(SharedString::from(format!(
-            "Model: {}",
-            model_label(&profile.model)
-        )));
-        window.set_transcription_hotkey_line(SharedString::from(format!(
-            "Transcription: {}",
-            settings.hotkey
-        )));
-        window.set_translation_hotkey_line(SharedString::from(format!(
-            "Translation: {}",
-            settings.translation_hotkey
-        )));
+        window.set_api_base_url(SharedString::from(profile.base_url.as_str()));
+        window.set_model_name(SharedString::from(model_label(&profile.model)));
+        window.set_transcription_hotkey(SharedString::from(settings.hotkey.as_str()));
+        window.set_translation_hotkey(SharedString::from(settings.translation_hotkey.as_str()));
         window.set_recording_mode_line(SharedString::from(format!(
             "Recording: {:?}",
             settings.recording_mode
@@ -115,6 +114,16 @@ impl UiController {
             }
         }
         commands
+    }
+
+    pub fn settings_edit(&self) -> Option<SettingsEdit> {
+        let window = self.settings_window.as_ref()?;
+        Some(SettingsEdit {
+            base_url: window.get_api_base_url().to_string(),
+            model: window.get_model_name().to_string(),
+            transcription_hotkey: window.get_transcription_hotkey().to_string(),
+            translation_hotkey: window.get_translation_hotkey().to_string(),
+        })
     }
 
     fn overlay(&mut self) -> anyhow::Result<RecordingOverlay> {

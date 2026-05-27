@@ -13,7 +13,7 @@ use crate::paths::AppPaths;
 use crate::settings::{AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
-use crate::ui::{UiCommand, UiController};
+use crate::ui::{SettingsEdit, UiCommand, UiController};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -170,6 +170,24 @@ impl AppRuntime {
     fn handle_ui_command(&mut self, command: UiCommand) -> anyhow::Result<()> {
         match command {
             UiCommand::Save => {
+                if let Some(edit) = self.ui.settings_edit() {
+                    crate::hotkeys::matcher::validate_pair(
+                        &edit.transcription_hotkey,
+                        &edit.translation_hotkey,
+                    )?;
+                    crate::api::endpoints::endpoint(&edit.base_url, "/v1/models")?;
+                    let old_hotkey = self.settings.hotkey.clone();
+                    let old_translation_hotkey = self.settings.translation_hotkey.clone();
+                    self.settings = apply_settings_edit(self.settings.clone(), edit).normalized();
+                    if self.settings.hotkey != old_hotkey
+                        || self.settings.translation_hotkey != old_translation_hotkey
+                    {
+                        self.hotkeys = GlobalHotkeyEvents::register(
+                            &self.settings.hotkey,
+                            &self.settings.translation_hotkey,
+                        )?;
+                    }
+                }
                 crate::settings::save_settings(&self.paths, &self.settings)?;
                 self.ui.set_status("Settings saved.");
             }
@@ -495,6 +513,23 @@ fn send_level(
     level_tx.send(LevelSample { level, delta_ms })
 }
 
+fn apply_settings_edit(mut settings: AppSettings, edit: SettingsEdit) -> AppSettings {
+    settings.hotkey = edit.transcription_hotkey.trim().to_string();
+    settings.translation_hotkey = edit.translation_hotkey.trim().to_string();
+
+    let active_profile_id = settings.active_api_profile_id.clone();
+    if let Some(profile) = settings
+        .api_profiles
+        .iter_mut()
+        .find(|profile| profile.id == active_profile_id)
+    {
+        profile.base_url = edit.base_url.trim().to_string();
+        profile.model = edit.model.trim().to_string();
+    }
+
+    settings
+}
+
 fn api_key_for_profile<'a>(api_keys: &'a BTreeMap<String, String>, profile_id: &str) -> &'a str {
     api_keys
         .get(profile_id)
@@ -746,11 +781,12 @@ fn acquire_single_instance(_name: &str) -> anyhow::Result<SingleInstanceGuard> {
 mod tests {
     use super::{
         OperationState, SingleInstanceGuard, StateCommand, VoiceInsertState, api_key_for_profile,
-        clear_logs, model_for_request,
+        apply_settings_edit, clear_logs, model_for_request,
     };
     use crate::api::transcription::AudioRequestKind;
     use crate::paths::AppPaths;
     use crate::settings::RecordingMode;
+    use crate::ui::SettingsEdit;
     use std::collections::BTreeMap;
 
     #[test]
@@ -852,5 +888,25 @@ mod tests {
 
         assert!(!log_path.exists());
         assert!(paths.logs_dir().exists());
+    }
+
+    #[test]
+    fn apply_settings_edit_updates_active_profile_and_hotkeys() {
+        let settings = crate::settings::AppSettings::default().normalized();
+        let settings = apply_settings_edit(
+            settings,
+            SettingsEdit {
+                base_url: " http://localhost:9555 ".to_string(),
+                model: " whisper-large-v3 ".to_string(),
+                transcription_hotkey: " Ctrl+Space ".to_string(),
+                translation_hotkey: " Alt+Y ".to_string(),
+            },
+        )
+        .normalized();
+
+        assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
+        assert_eq!(settings.active_profile().model, "whisper-large-v3");
+        assert_eq!(settings.hotkey, "Ctrl+Space");
+        assert_eq!(settings.translation_hotkey, "Alt+Y");
     }
 }
