@@ -4,6 +4,7 @@
 
 - Started the Rust + Slint rewrite on the `rewrite-rust-slint` branch.
 - Changed the default local API profile from `wlast` to `ai2npu` at `http://localhost:9555`.
+- Removed the previous .NET/WPF implementation from the Rust rewrite branch.
 
 ## 1.1.0
 
