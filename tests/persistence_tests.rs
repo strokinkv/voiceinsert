@@ -90,6 +90,19 @@ fn missing_api_key_file_loads_empty_map() {
 }
 
 #[test]
+fn saving_empty_api_keys_removes_secret_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let paths = voiceinsert::paths::AppPaths::for_test(temp.path());
+    let mut keys = BTreeMap::new();
+    keys.insert("ai2npu".to_string(), "local-key".to_string());
+
+    voiceinsert::secrets::save_api_keys(&paths, &keys).unwrap();
+    voiceinsert::secrets::save_api_keys(&paths, &BTreeMap::new()).unwrap();
+
+    assert!(!paths.secrets_path().exists());
+}
+
+#[test]
 fn logging_init_creates_logs_dir_and_last_error_state_roundtrips() {
     let temp = tempfile::tempdir().unwrap();
     let paths = voiceinsert::paths::AppPaths::for_test(temp.path());

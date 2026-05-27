@@ -1,5 +1,8 @@
 use voiceinsert::audio::levels::{peak_level_i16_le, should_stop_on_silence};
-use voiceinsert::audio::recorder::{AudioDevice, encode_wav_mono_16khz_i16};
+use voiceinsert::audio::recorder::{
+    AudioDevice, append_limited_samples, convert_f32_to_i16, convert_u16_to_i16,
+    encode_wav_mono_16khz_i16,
+};
 use voiceinsert::settings::RecordingMode;
 
 #[test]
@@ -47,4 +50,21 @@ fn wav_encoding_writes_riff_wave_header() {
 
     assert_eq!(&bytes[0..4], b"RIFF");
     assert_eq!(&bytes[8..12], b"WAVE");
+}
+
+#[test]
+fn sample_conversions_cover_full_scale_values() {
+    assert_eq!(convert_u16_to_i16(0), i16::MIN);
+    assert_eq!(convert_u16_to_i16(u16::MAX), i16::MAX);
+    assert_eq!(convert_f32_to_i16(-1.0), i16::MIN);
+    assert_eq!(convert_f32_to_i16(1.0), i16::MAX);
+}
+
+#[test]
+fn append_limited_samples_keeps_most_recent_samples() {
+    let mut buffer = vec![1, 2, 3];
+
+    append_limited_samples(&mut buffer, &[4, 5, 6], 4);
+
+    assert_eq!(buffer, vec![3, 4, 5, 6]);
 }

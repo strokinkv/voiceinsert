@@ -30,6 +30,14 @@ pub fn load_api_keys(paths: &AppPaths) -> anyhow::Result<BTreeMap<String, String
 
 pub fn save_api_keys(paths: &AppPaths, keys: &BTreeMap<String, String>) -> anyhow::Result<()> {
     fs::create_dir_all(paths.app_data_dir())?;
+    if keys.is_empty() {
+        let path = paths.secrets_path();
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        return Ok(());
+    }
+
     let serialized = serialize_keys(keys)?;
     let protected = protect(&serialized)?;
     fs::write(paths.secrets_path(), protected)?;

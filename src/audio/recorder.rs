@@ -27,6 +27,7 @@ impl AudioDevice {
 pub struct RecorderConfig {
     pub device_index: Option<usize>,
     pub sample_rate: u32,
+    pub max_buffer_samples: usize,
 }
 
 impl Default for RecorderConfig {
@@ -34,6 +35,7 @@ impl Default for RecorderConfig {
         Self {
             device_index: None,
             sample_rate: TARGET_SAMPLE_RATE,
+            max_buffer_samples: TARGET_SAMPLE_RATE as usize * 3600,
         }
     }
 }
@@ -107,13 +109,21 @@ impl Recorder {
         let channels = usize::from(stream_config.channels);
         self.capture_sample_rate = stream_config.sample_rate.0;
         let samples = Arc::clone(&self.samples);
+        let max_buffer_samples = self.config.max_buffer_samples;
         let err_fn = |error| tracing::warn!(%error, "input audio stream error");
 
         let stream = match sample_format {
             SampleFormat::I16 => device.build_input_stream(
                 &stream_config,
                 move |data: &[i16], _| {
-                    capture_samples(data, channels, &samples, &mut on_level, convert_i16_to_i16);
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_i16_to_i16,
+                        max_buffer_samples,
+                    );
                 },
                 err_fn,
                 None,
@@ -121,7 +131,14 @@ impl Recorder {
             SampleFormat::U16 => device.build_input_stream(
                 &stream_config,
                 move |data: &[u16], _| {
-                    capture_samples(data, channels, &samples, &mut on_level, convert_u16_to_i16);
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_u16_to_i16,
+                        max_buffer_samples,
+                    );
                 },
                 err_fn,
                 None,
@@ -129,7 +146,14 @@ impl Recorder {
             SampleFormat::F32 => device.build_input_stream(
                 &stream_config,
                 move |data: &[f32], _| {
-                    capture_samples(data, channels, &samples, &mut on_level, convert_f32_to_i16);
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_f32_to_i16,
+                        max_buffer_samples,
+                    );
                 },
                 err_fn,
                 None,
@@ -190,7 +214,9 @@ pub fn convert_u16_to_i16(sample: u16) -> i16 {
 }
 
 pub fn convert_f32_to_i16(sample: f32) -> i16 {
-    (sample.clamp(-1.0, 1.0) * 32767.0).round() as i16
+    (sample.clamp(-1.0, 1.0) * 32768.0)
+        .round()
+        .clamp(i16::MIN as f32, i16::MAX as f32) as i16
 }
 
 fn supported_config(
@@ -223,6 +249,7 @@ fn capture_samples<T, F, C>(
     samples: &Arc<Mutex<Vec<i16>>>,
     on_level: &mut F,
     convert: C,
+    max_buffer_samples: usize,
 ) where
     T: Copy,
     F: FnMut(f32),
@@ -230,11 +257,25 @@ fn capture_samples<T, F, C>(
 {
     let mono = downmix_to_mono(data, channels, convert);
     let level = peak_level_i16(&mono);
-    samples
-        .lock()
-        .expect("recorder samples lock poisoned")
-        .extend_from_slice(&mono);
+    append_limited_samples(
+        &mut samples.lock().expect("recorder samples lock poisoned"),
+        &mono,
+        max_buffer_samples,
+    );
     on_level(level);
+}
+
+pub fn append_limited_samples(buffer: &mut Vec<i16>, samples: &[i16], max_samples: usize) {
+    if max_samples == 0 {
+        buffer.clear();
+        return;
+    }
+
+    buffer.extend_from_slice(samples);
+    if buffer.len() > max_samples {
+        let extra = buffer.len() - max_samples;
+        buffer.drain(0..extra);
+    }
 }
 
 fn downmix_to_mono<T, C>(data: &[T], channels: usize, convert: C) -> Vec<i16>
