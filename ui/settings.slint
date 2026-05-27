@@ -23,6 +23,7 @@ component Field inherits Rectangle {
 component NavItem inherits Rectangle {
     in property <string> label: "";
     in property <bool> selected: false;
+    callback clicked();
 
     height: 30px;
     background: selected ? #e6f2ee : transparent;
@@ -35,6 +36,10 @@ component NavItem inherits Rectangle {
         font-weight: selected ? 600 : 400;
         horizontal-alignment: center;
         vertical-alignment: center;
+    }
+
+    TouchArea {
+        clicked => { root.clicked(); }
     }
 }
 
@@ -101,13 +106,41 @@ export component SettingsWindow inherits Window {
 
         HorizontalLayout {
             spacing: 8px;
-            NavItem { label: "General"; selected: true; }
-            NavItem { label: "Hotkeys"; }
-            NavItem { label: "Audio"; }
-            NavItem { label: "API"; }
-            NavItem { label: "Insertion"; }
-            NavItem { label: "Sounds"; }
-            NavItem { label: "Logs"; }
+            NavItem {
+                label: "General";
+                selected: root.selected-page == 0;
+                clicked => { root.selected-page = 0; }
+            }
+            NavItem {
+                label: "Hotkeys";
+                selected: root.selected-page == 1;
+                clicked => { root.selected-page = 1; }
+            }
+            NavItem {
+                label: "Audio";
+                selected: root.selected-page == 2;
+                clicked => { root.selected-page = 2; }
+            }
+            NavItem {
+                label: "API";
+                selected: root.selected-page == 3;
+                clicked => { root.selected-page = 3; }
+            }
+            NavItem {
+                label: "Insertion";
+                selected: root.selected-page == 4;
+                clicked => { root.selected-page = 4; }
+            }
+            NavItem {
+                label: "Sounds";
+                selected: root.selected-page == 5;
+                clicked => { root.selected-page = 5; }
+            }
+            NavItem {
+                label: "Logs";
+                selected: root.selected-page == 6;
+                clicked => { root.selected-page = 6; }
+            }
         }
 
         Rectangle {
@@ -119,22 +152,82 @@ export component SettingsWindow inherits Window {
                 padding: 16px;
                 spacing: 8px;
 
-                Text { text: "Settings"; color: #1f2a28; }
-                Text { text: root.profile-line; color: #66746e; }
+                if root.selected-page == 0: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: "Settings"; color: #1f2a28; }
+                    Text { text: root.profile-line; color: #66746e; }
+                    Text { text: root.recording-mode-line; color: #66746e; }
+                }
 
-                Text { text: "API"; color: #66746e; }
-                Field { value <=> root.api-base-url; }
+                if root.selected-page == 1: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: "Hotkeys"; color: #1f2a28; }
 
-                Text { text: "Model"; color: #66746e; }
-                Field { value <=> root.model-name; }
+                    Text { text: "Transcription hotkey"; color: #66746e; }
+                    Field { value <=> root.transcription-hotkey; }
 
-                Text { text: "Transcription hotkey"; color: #66746e; }
-                Field { value <=> root.transcription-hotkey; }
+                    Text { text: "Translation hotkey"; color: #66746e; }
+                    Field { value <=> root.translation-hotkey; }
+                }
 
-                Text { text: "Translation hotkey"; color: #66746e; }
-                Field { value <=> root.translation-hotkey; }
+                if root.selected-page == 2: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: "Audio"; color: #1f2a28; }
+                }
 
-                Text { text: root.recording-mode-line; color: #66746e; }
+                if root.selected-page == 3: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: "API"; color: #1f2a28; }
+                    Text { text: root.profile-line; color: #66746e; }
+
+                    Text { text: "Base URL"; color: #66746e; }
+                    Field { value <=> root.api-base-url; }
+
+                    Text { text: "Model"; color: #66746e; }
+                    Field { value <=> root.model-name; }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        ActionButton {
+                            label: "Models";
+                            fill: #cfddd6;
+                            clicked => { root.load-models(); }
+                        }
+                        ActionButton {
+                            label: "Test";
+                            fill: #cfddd6;
+                            clicked => { root.test-api-connection(); }
+                        }
+                    }
+                }
+
+                if root.selected-page == 4: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: "Insertion"; color: #1f2a28; }
+                }
+
+                if root.selected-page == 5: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: "Sounds"; color: #1f2a28; }
+                }
+
+                if root.selected-page == 6: VerticalLayout {
+                    spacing: 8px;
+                    Text { text: "Logs"; color: #1f2a28; }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        ActionButton {
+                            label: "Open";
+                            fill: #cfddd6;
+                            clicked => { root.open-logs-folder(); }
+                        }
+                        ActionButton {
+                            label: "Clear";
+                            fill: #cfddd6;
+                            clicked => { root.clear-logs(); }
+                        }
+                    }
+                }
             }
         }
 

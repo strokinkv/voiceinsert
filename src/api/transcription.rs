@@ -14,6 +14,17 @@ struct AudioTextResponse {
     text: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct ApiErrorEnvelope {
+    error: Option<ApiErrorBody>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiErrorBody {
+    message: Option<String>,
+    code: Option<String>,
+}
+
 impl AudioTextResponse {
     fn into_text(self) -> anyhow::Result<String> {
         self.text
@@ -37,13 +48,32 @@ pub fn sanitize_api_error(
     model: &str,
     status: u16,
     reason: &str,
-    _response_body: &str,
+    response_body: &str,
 ) -> String {
     let mut message = format!("Audio API request failed: {status} {reason}. Model: {model}.");
+    if let Some(api_message) = safe_api_error_message(response_body) {
+        message.push(' ');
+        message.push_str(&api_message);
+    }
     if kind == AudioRequestKind::Translation {
         message.push_str(" The selected model may not support audio translation.");
     }
     message
+}
+
+fn safe_api_error_message(response_body: &str) -> Option<String> {
+    let envelope = serde_json::from_str::<ApiErrorEnvelope>(response_body).ok()?;
+    let error = envelope.error?;
+    let detail = error.message?.trim().replace(['\r', '\n'], " ");
+    if detail.is_empty() {
+        return None;
+    }
+
+    let detail = detail.chars().take(300).collect::<String>();
+    match error.code.filter(|code| !code.trim().is_empty()) {
+        Some(code) => Some(format!("API error {code}: {detail}")),
+        None => Some(format!("API error: {detail}")),
+    }
 }
 
 pub fn audio_endpoint_path(kind: AudioRequestKind) -> &'static str {
@@ -100,7 +130,7 @@ pub async fn send_audio(
 mod tests {
     use super::{
         AUDIO_RESPONSE_FORMAT, AudioRequestKind, AudioTextResponse, audio_endpoint_path,
-        sanitize_api_error,
+        safe_api_error_message, sanitize_api_error,
     };
 
     #[test]
@@ -136,6 +166,28 @@ mod tests {
         assert!(message.contains("may not support audio translation"));
         assert!(!message.contains("private recognized user text"));
         assert!(!message.contains("sk-secret"));
+    }
+
+    #[test]
+    fn api_error_body_includes_safe_error_message() {
+        let message = sanitize_api_error(
+            AudioRequestKind::Transcription,
+            "openai/whisper-large-v3-turbo",
+            500,
+            "Internal Server Error",
+            r#"{"error":{"message":"native GenAI bridge failed","code":"internal_error"}}"#,
+        );
+
+        assert!(message.contains("internal_error"));
+        assert!(message.contains("native GenAI bridge failed"));
+    }
+
+    #[test]
+    fn safe_api_error_message_rejects_non_error_json() {
+        assert_eq!(
+            safe_api_error_message(r#"{"text":"recognized private text"}"#),
+            None
+        );
     }
 
     #[test]

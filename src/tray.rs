@@ -137,6 +137,23 @@ impl RuntimeTray {
 }
 
 fn default_icon() -> anyhow::Result<tray_icon::Icon> {
+    #[cfg(windows)]
+    {
+        if let Ok(exe_path) = std::env::current_exe() {
+            let installed_icon = exe_path.with_file_name("VoiceInsert.ico");
+            if installed_icon.exists() {
+                return Ok(tray_icon::Icon::from_path(installed_icon, Some((32, 32)))?);
+            }
+        }
+
+        let source_icon = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets")
+            .join("VoiceInsert.ico");
+        if source_icon.exists() {
+            return Ok(tray_icon::Icon::from_path(source_icon, Some((32, 32)))?);
+        }
+    }
+
     const SIZE: u32 = 32;
     let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
 
