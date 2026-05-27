@@ -646,7 +646,9 @@ impl VoiceInsertState {
     pub fn hotkey_pressed(&mut self, request_kind: AudioRequestKind) -> StateCommand {
         match (self.recording_mode, self.state) {
             (RecordingMode::Hold, OperationState::Idle)
-            | (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Idle) => {
+            | (RecordingMode::Hold, OperationState::Error)
+            | (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Idle)
+            | (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Error) => {
                 self.start_recording(request_kind);
                 StateCommand::StartRecording(request_kind)
             }
@@ -857,6 +859,22 @@ mod tests {
         assert_eq!(
             state.level_changed(1.0, 250),
             StateCommand::StopAndTranscribe(AudioRequestKind::Transcription)
+        );
+    }
+
+    #[test]
+    fn hotkey_can_start_new_recording_after_error() {
+        let mut state = VoiceInsertState::new(RecordingMode::Toggle, 0.04, 1200, 120_000);
+
+        state.mark_error();
+
+        assert_eq!(
+            state.hotkey_pressed(AudioRequestKind::Transcription),
+            StateCommand::StartRecording(AudioRequestKind::Transcription)
+        );
+        assert_eq!(
+            state.state(),
+            OperationState::Recording(AudioRequestKind::Transcription)
         );
     }
 
