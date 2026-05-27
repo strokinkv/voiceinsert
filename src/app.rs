@@ -3,6 +3,7 @@ use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError
 
 use crate::api::transcription::AudioRequestKind;
 use crate::api::transcription::{SendAudioRequest, send_audio};
+use crate::api::{health::check_profile, models::load_models};
 use crate::audio::levels::should_stop_on_silence;
 use crate::audio::recorder::{Recorder, RecorderConfig};
 use crate::clipboard::ClipboardInserter;
@@ -12,7 +13,7 @@ use crate::paths::AppPaths;
 use crate::settings::{AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
-use crate::ui::UiController;
+use crate::ui::{UiCommand, UiController};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -31,6 +32,7 @@ pub fn run() -> anyhow::Result<()> {
 
 pub struct AppRuntime {
     settings: AppSettings,
+    paths: AppPaths,
     api_keys: BTreeMap<String, String>,
     http: reqwest::Client,
     tokio: tokio::runtime::Runtime,
@@ -83,6 +85,7 @@ impl AppRuntime {
 
         Ok(Self {
             settings,
+            paths,
             api_keys,
             http,
             tokio,
@@ -135,6 +138,10 @@ impl AppRuntime {
             self.handle_hotkey_action(action);
         }
 
+        for command in self.ui.drain_commands() {
+            self.handle_ui_command(command)?;
+        }
+
         self.process_level_events();
         Ok(())
     }
@@ -151,6 +158,45 @@ impl AppRuntime {
                 Ok(true)
             }
         }
+    }
+
+    fn handle_ui_command(&mut self, command: UiCommand) -> anyhow::Result<()> {
+        match command {
+            UiCommand::Save => {
+                crate::settings::save_settings(&self.paths, &self.settings)?;
+                self.ui.set_status("Settings saved.");
+            }
+            UiCommand::LoadModels => {
+                let profile = self.settings.active_profile();
+                let api_key = api_key_for_profile(&self.api_keys, &profile.id);
+                let models =
+                    self.tokio
+                        .block_on(load_models(&self.http, &profile.base_url, api_key))?;
+                self.ui
+                    .set_status(format!("Loaded models: {}.", models.len()));
+            }
+            UiCommand::TestApiConnection => {
+                let profile = self.settings.active_profile();
+                let api_key = api_key_for_profile(&self.api_keys, &profile.id);
+                let result = self
+                    .tokio
+                    .block_on(check_profile(&self.http, profile, api_key));
+                if result.is_healthy {
+                    self.ui.set_status(result.message);
+                } else {
+                    anyhow::bail!("{}", result.message);
+                }
+            }
+            UiCommand::OpenLogsFolder => {
+                open_folder(&self.paths.logs_dir())?;
+            }
+            UiCommand::ClearLogs => {
+                clear_logs(&self.paths)?;
+                self.ui.set_status("Logs cleared.");
+            }
+        }
+
+        Ok(())
     }
 
     fn handle_hotkey_action(&mut self, action: HotkeyAction) {
@@ -299,6 +345,39 @@ fn non_empty_str(value: &str) -> Option<&str> {
     } else {
         Some(trimmed)
     }
+}
+
+fn clear_logs(paths: &AppPaths) -> anyhow::Result<()> {
+    let logs_dir = paths.logs_dir();
+    if !logs_dir.exists() {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(&logs_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            std::fs::remove_file(path)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {
+    std::fs::create_dir_all(path)?;
+
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer").arg(path).spawn()?;
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+    }
+
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -498,9 +577,10 @@ fn acquire_single_instance(_name: &str) -> anyhow::Result<SingleInstanceGuard> {
 mod tests {
     use super::{
         OperationState, SingleInstanceGuard, StateCommand, VoiceInsertState, api_key_for_profile,
-        model_for_request,
+        clear_logs, model_for_request,
     };
     use crate::api::transcription::AudioRequestKind;
+    use crate::paths::AppPaths;
     use crate::settings::RecordingMode;
     use std::collections::BTreeMap;
 
@@ -589,5 +669,19 @@ mod tests {
     fn empty_model_uses_transcription_fallback() {
         assert_eq!(model_for_request(""), "whisper-large-v3");
         assert_eq!(model_for_request(" custom-model "), "custom-model");
+    }
+
+    #[test]
+    fn clear_logs_removes_files_in_logs_dir_only() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = AppPaths::for_test(temp.path());
+        std::fs::create_dir_all(paths.logs_dir()).unwrap();
+        let log_path = paths.logs_dir().join("voiceinsert.log");
+        std::fs::write(&log_path, "log").unwrap();
+
+        clear_logs(&paths).unwrap();
+
+        assert!(!log_path.exists());
+        assert!(paths.logs_dir().exists());
     }
 }

@@ -2,15 +2,30 @@ slint::include_modules!();
 
 use crate::settings::AppSettings;
 use slint::{ComponentHandle, SharedString};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiCommand {
+    Save,
+    LoadModels,
+    TestApiConnection,
+    OpenLogsFolder,
+    ClearLogs,
+}
 
 pub struct UiController {
     settings_window: Option<SettingsWindow>,
+    command_tx: Sender<UiCommand>,
+    command_rx: Receiver<UiCommand>,
 }
 
 impl UiController {
     pub fn new() -> Self {
+        let (command_tx, command_rx) = std::sync::mpsc::channel();
         Self {
             settings_window: None,
+            command_tx,
+            command_rx,
         }
     }
 
@@ -19,7 +34,7 @@ impl UiController {
             Some(window) => window.clone_strong(),
             None => {
                 let window = SettingsWindow::new()?;
-                wire_settings_callbacks(&window);
+                wire_settings_callbacks(&window, self.command_tx.clone());
                 self.settings_window = Some(window.clone_strong());
                 window
             }
@@ -33,6 +48,24 @@ impl UiController {
         window.show()?;
         Ok(())
     }
+
+    pub fn set_status(&self, message: impl Into<SharedString>) {
+        if let Some(window) = &self.settings_window {
+            window.set_status_text(message.into());
+        }
+    }
+
+    pub fn drain_commands(&self) -> Vec<UiCommand> {
+        let mut commands = Vec::new();
+        loop {
+            match self.command_rx.try_recv() {
+                Ok(command) => commands.push(command),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => break,
+            }
+        }
+        commands
+    }
 }
 
 impl Default for UiController {
@@ -41,7 +74,7 @@ impl Default for UiController {
     }
 }
 
-fn wire_settings_callbacks(window: &SettingsWindow) {
+fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand>) {
     let weak = window.as_weak();
     window.on_close(move || {
         if let Some(window) = weak.upgrade() {
@@ -49,10 +82,27 @@ fn wire_settings_callbacks(window: &SettingsWindow) {
         }
     });
 
-    let weak = window.as_weak();
+    let tx = command_tx.clone();
     window.on_save(move || {
-        if let Some(window) = weak.upgrade() {
-            window.set_status_text(SharedString::from("Settings saved."));
-        }
+        let _ = tx.send(UiCommand::Save);
+    });
+
+    let tx = command_tx.clone();
+    window.on_load_models(move || {
+        let _ = tx.send(UiCommand::LoadModels);
+    });
+
+    let tx = command_tx.clone();
+    window.on_test_api_connection(move || {
+        let _ = tx.send(UiCommand::TestApiConnection);
+    });
+
+    let tx = command_tx.clone();
+    window.on_open_logs_folder(move || {
+        let _ = tx.send(UiCommand::OpenLogsFolder);
+    });
+
+    window.on_clear_logs(move || {
+        let _ = command_tx.send(UiCommand::ClearLogs);
     });
 }
