@@ -5,6 +5,7 @@ pub mod clipboard;
 pub mod hotkeys;
 pub mod i18n;
 pub mod logging;
+pub mod overlay;
 pub mod paths;
 pub mod secrets;
 pub mod settings;

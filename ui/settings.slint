@@ -1,0 +1,96 @@
+export component SettingsWindow inherits Window {
+    in-out property <string> status-text: "";
+    in-out property <int> selected-page: 0;
+
+    callback save();
+    callback close();
+    callback refresh-devices();
+    callback test-microphone();
+    callback load-models();
+    callback test-api-connection();
+    callback add-api-profile();
+    callback delete-api-profile();
+    callback change-transcription-hotkey();
+    callback change-translation-hotkey();
+    callback open-logs-folder();
+    callback clear-logs();
+
+    title: "VoiceInsert";
+    width: 760px;
+    height: 530px;
+    background: #f6f8f7;
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 12px;
+
+        Text {
+            text: "VoiceInsert";
+            font-size: 22px;
+            color: #1f2a28;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text { text: "General"; }
+            Text { text: "Hotkeys"; }
+            Text { text: "Audio"; }
+            Text { text: "API"; }
+            Text { text: "Insertion"; }
+            Text { text: "Sounds"; }
+            Text { text: "Logs"; }
+        }
+
+        Rectangle {
+            background: #fcfdfb;
+            border-color: #dde6e1;
+            border-width: 1px;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 8px;
+
+                Text { text: "Settings"; color: #1f2a28; }
+                Text { text: "Profile: ai2npu"; color: #66746e; }
+                Text { text: "Model, hotkeys, audio device, insertion, sounds, and logs are wired from Rust."; color: #66746e; }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: root.status-text;
+                color: #66746e;
+                horizontal-stretch: 1;
+            }
+            TouchArea {
+                clicked => { root.save(); }
+                Rectangle {
+                    background: #51b3a2;
+                    width: 96px;
+                    height: 32px;
+                    Text {
+                        text: "Save";
+                        color: #10231f;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            TouchArea {
+                clicked => { root.close(); }
+                Rectangle {
+                    background: #cfddd6;
+                    width: 96px;
+                    height: 32px;
+                    Text {
+                        text: "Close";
+                        color: #10231f;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}
