@@ -2,13 +2,18 @@
 use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE};
 
 use crate::api::transcription::AudioRequestKind;
+use crate::api::transcription::{SendAudioRequest, send_audio};
 use crate::audio::levels::should_stop_on_silence;
+use crate::audio::recorder::{Recorder, RecorderConfig};
+use crate::clipboard::ClipboardInserter;
 use crate::hotkeys::service::{GlobalHotkeyEvents, HotkeyAction, HotkeyEvents};
 use crate::logging::LastErrorState;
 use crate::paths::AppPaths;
-use crate::settings::RecordingMode;
+use crate::settings::{AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
+use std::collections::BTreeMap;
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::time::Duration;
 
 pub fn run() -> anyhow::Result<()> {
@@ -22,10 +27,17 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 pub struct AppRuntime {
+    settings: AppSettings,
+    api_keys: BTreeMap<String, String>,
+    http: reqwest::Client,
+    tokio: tokio::runtime::Runtime,
     state: VoiceInsertState,
     tray: RuntimeTray,
     hotkeys: GlobalHotkeyEvents,
+    recorder: Option<Recorder>,
+    level_rx: Option<Receiver<f32>>,
     sounds: SoundService,
+    clipboard: ClipboardInserter,
     last_error: LastErrorState,
 }
 
@@ -33,6 +45,7 @@ impl AppRuntime {
     pub fn initialize() -> anyhow::Result<Self> {
         let paths = AppPaths::new()?;
         let settings = crate::settings::load_settings(&paths)?;
+        let api_keys = crate::secrets::load_api_keys(&paths)?;
         crate::logging::init(&paths, &settings.log_level)?;
 
         let active_profile = settings.active_profile();
@@ -50,15 +63,31 @@ impl AppRuntime {
         );
         let tray = RuntimeTray::new(settings.ui_language)?;
         let hotkeys = GlobalHotkeyEvents::register(&settings.hotkey, &settings.translation_hotkey)?;
+        let clipboard = ClipboardInserter {
+            restore_clipboard: settings.restore_clipboard_content,
+            delay_before_paste_ms: settings.delay_before_paste_milliseconds,
+            delay_before_restore_ms: settings.delay_before_clipboard_restore_milliseconds,
+        };
         let sounds = SoundService {
             enabled: settings.enable_sounds,
         };
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(settings.request_timeout_seconds))
+            .build()?;
+        let tokio = tokio::runtime::Runtime::new()?;
 
         Ok(Self {
+            settings,
+            api_keys,
+            http,
+            tokio,
             state,
             tray,
             hotkeys,
+            recorder: None,
+            level_rx: None,
             sounds,
+            clipboard,
             last_error: LastErrorState::default(),
         })
     }
@@ -77,6 +106,7 @@ impl AppRuntime {
                 self.handle_hotkey_action(action);
             }
 
+            self.process_level_events();
             std::thread::sleep(Duration::from_millis(16));
         }
     }
@@ -120,6 +150,7 @@ impl AppRuntime {
             StateCommand::None => {}
             StateCommand::StartRecording(kind) => {
                 tracing::info!(?kind, "recording started");
+                self.start_recording()?;
                 self.tray.set_state(TrayState::Recording);
                 self.sounds.play(SoundKind::Start)?;
             }
@@ -127,11 +158,135 @@ impl AppRuntime {
                 tracing::info!(?kind, "recording stopped");
                 self.tray.set_state(TrayState::Transcribing);
                 self.sounds.play(SoundKind::Stop)?;
+                self.stop_recording_and_insert(kind)?;
             }
         }
 
         Ok(())
     }
+
+    fn start_recording(&mut self) -> anyhow::Result<()> {
+        let max_buffer_samples = self
+            .settings
+            .max_recording_seconds
+            .saturating_mul(crate::audio::recorder::TARGET_SAMPLE_RATE as u64)
+            .try_into()
+            .unwrap_or(usize::MAX);
+        let mut recorder = Recorder::new(RecorderConfig {
+            max_buffer_samples,
+            ..RecorderConfig::default()
+        });
+        let (level_tx, level_rx) = std::sync::mpsc::channel();
+
+        recorder.start(move |level| {
+            let _ = send_level(&level_tx, level);
+        })?;
+
+        self.recorder = Some(recorder);
+        self.level_rx = Some(level_rx);
+        Ok(())
+    }
+
+    fn stop_recording_and_insert(&mut self, kind: AudioRequestKind) -> anyhow::Result<()> {
+        let wav_bytes = match self.recorder.as_mut() {
+            Some(recorder) => recorder.stop()?,
+            None => anyhow::bail!("recording stop requested but recorder is not active"),
+        };
+        self.recorder = None;
+        self.level_rx = None;
+
+        let profile = self.settings.active_profile();
+        let api_key = api_key_for_profile(&self.api_keys, &profile.id);
+        let model = model_for_request(&profile.model);
+        let language = non_empty_str(&profile.language);
+        let text = self.tokio.block_on(send_audio(
+            &self.http,
+            SendAudioRequest {
+                base_url: &profile.base_url,
+                api_key,
+                model,
+                language,
+                temperature: Some(profile.temperature),
+                wav_bytes,
+                kind,
+            },
+        ))?;
+
+        self.state.mark_inserting();
+        self.tray.set_state(TrayState::Idle);
+        self.tokio
+            .block_on(self.clipboard.insert_text(&text, active_window()))?;
+        self.state.mark_idle();
+        Ok(())
+    }
+
+    fn process_level_events(&mut self) {
+        let mut levels = Vec::new();
+        if let Some(level_rx) = &self.level_rx {
+            loop {
+                match level_rx.try_recv() {
+                    Ok(level) => levels.push(level),
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => break,
+                }
+            }
+        }
+
+        for level in levels {
+            let command = self.state.level_changed(level, 16);
+            if let Err(error) = self.apply_state_command(command) {
+                let message = error.to_string();
+                self.last_error.set(message.clone());
+                tracing::error!(%message, "failed to process audio level");
+                self.state.mark_error();
+                self.tray.set_state(TrayState::Error);
+                let _ = self.sounds.play(SoundKind::Error);
+                break;
+            }
+        }
+    }
+}
+
+fn send_level(level_tx: &Sender<f32>, level: f32) -> Result<(), std::sync::mpsc::SendError<f32>> {
+    level_tx.send(level)
+}
+
+fn api_key_for_profile<'a>(api_keys: &'a BTreeMap<String, String>, profile_id: &str) -> &'a str {
+    api_keys
+        .get(profile_id)
+        .or_else(|| api_keys.get("default"))
+        .map(String::as_str)
+        .unwrap_or("")
+}
+
+fn model_for_request(model: &str) -> &str {
+    non_empty_str(model).unwrap_or("whisper-large-v3")
+}
+
+fn non_empty_str(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+#[cfg(windows)]
+fn active_window() -> Option<isize> {
+    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+
+    let hwnd = unsafe { GetForegroundWindow() };
+    if hwnd.0.is_null() {
+        None
+    } else {
+        Some(hwnd.0 as isize)
+    }
+}
+
+#[cfg(not(windows))]
+fn active_window() -> Option<isize> {
+    None
 }
 
 #[cfg(windows)]
@@ -331,9 +486,13 @@ fn acquire_single_instance(_name: &str) -> anyhow::Result<SingleInstanceGuard> {
 
 #[cfg(test)]
 mod tests {
-    use super::{OperationState, SingleInstanceGuard, StateCommand, VoiceInsertState};
+    use super::{
+        OperationState, SingleInstanceGuard, StateCommand, VoiceInsertState, api_key_for_profile,
+        model_for_request,
+    };
     use crate::api::transcription::AudioRequestKind;
     use crate::settings::RecordingMode;
+    use std::collections::BTreeMap;
 
     #[test]
     fn single_instance_guard_reports_acquired_on_non_conflicting_name() {
@@ -404,5 +563,21 @@ mod tests {
             state.level_changed(1.0, 250),
             StateCommand::StopAndTranscribe(AudioRequestKind::Transcription)
         );
+    }
+
+    #[test]
+    fn api_key_prefers_active_profile_then_default() {
+        let mut keys = BTreeMap::new();
+        keys.insert("default".to_string(), "default-key".to_string());
+        keys.insert("ai2npu".to_string(), "profile-key".to_string());
+
+        assert_eq!(api_key_for_profile(&keys, "ai2npu"), "profile-key");
+        assert_eq!(api_key_for_profile(&keys, "missing"), "default-key");
+    }
+
+    #[test]
+    fn empty_model_uses_transcription_fallback() {
+        assert_eq!(model_for_request(""), "whisper-large-v3");
+        assert_eq!(model_for_request(" custom-model "), "custom-model");
     }
 }
