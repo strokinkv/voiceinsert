@@ -10,7 +10,7 @@ use crate::clipboard::ClipboardInserter;
 use crate::hotkeys::service::{GlobalHotkeyEvents, HotkeyAction, HotkeyEvents};
 use crate::logging::LastErrorState;
 use crate::paths::AppPaths;
-use crate::settings::{AppSettings, RecordingMode};
+use crate::settings::{AI2NPU_DEFAULT_MODEL, AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
 use crate::ui::{SettingsEdit, UiCommand, UiController};
@@ -539,7 +539,7 @@ fn api_key_for_profile<'a>(api_keys: &'a BTreeMap<String, String>, profile_id: &
 }
 
 fn model_for_request(model: &str) -> &str {
-    non_empty_str(model).unwrap_or("whisper-large-v3")
+    non_empty_str(model).unwrap_or(AI2NPU_DEFAULT_MODEL)
 }
 
 fn non_empty_str(value: &str) -> Option<&str> {
@@ -872,7 +872,7 @@ mod tests {
 
     #[test]
     fn empty_model_uses_transcription_fallback() {
-        assert_eq!(model_for_request(""), "whisper-large-v3");
+        assert_eq!(model_for_request(""), "openai/whisper-large-v3-turbo");
         assert_eq!(model_for_request(" custom-model "), "custom-model");
     }
 

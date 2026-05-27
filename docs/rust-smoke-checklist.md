@@ -13,9 +13,11 @@ Use this checklist on Windows 11 after antivirus handling for Cargo `target/` is
 - [ ] Tray menu localizes in Russian and English.
 - [ ] Default profiles are `ai2npu` then `groq`.
 - [ ] `ai2npu` points to `http://localhost:9555`.
+- [ ] `ai2npu` uses `openai/whisper-large-v3-turbo`.
 - [ ] Model loading calls `GET {base_url}/v1/models`.
 - [ ] Transcription calls `POST {base_url}/v1/audio/transcriptions`.
 - [ ] Translation calls `POST {base_url}/v1/audio/translations`.
+- [ ] Audio requests send WAV as mono 16 kHz signed 16-bit PCM with `response_format=json`.
 - [ ] Translation failure logs model and support hint without response body text.
 - [ ] `Ctrl+Space` starts transcription.
 - [ ] `Alt+Y` starts translation.

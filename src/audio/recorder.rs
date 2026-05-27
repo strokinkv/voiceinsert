@@ -293,8 +293,9 @@ impl Recorder {
             .lock()
             .expect("recorder samples lock poisoned")
             .clone();
+        let samples = resample_linear_i16(&samples, self.capture_sample_rate, TARGET_SAMPLE_RATE);
 
-        encode_wav_mono_i16(&samples, self.capture_sample_rate)
+        encode_wav_mono_i16(&samples, TARGET_SAMPLE_RATE)
     }
 }
 
@@ -323,6 +324,38 @@ pub fn encode_wav_mono_i16(samples: &[i16], sample_rate: u32) -> anyhow::Result<
     }
 
     Ok(bytes)
+}
+
+pub fn resample_linear_i16(samples: &[i16], source_rate: u32, target_rate: u32) -> Vec<i16> {
+    if samples.is_empty() || source_rate == 0 || target_rate == 0 {
+        return Vec::new();
+    }
+
+    if source_rate == target_rate {
+        return samples.to_vec();
+    }
+
+    let target_len =
+        ((samples.len() as u64 * target_rate as u64) / source_rate as u64).max(1) as usize;
+    let mut output = Vec::with_capacity(target_len);
+    let source_rate = source_rate as f64;
+    let target_rate = target_rate as f64;
+
+    for target_index in 0..target_len {
+        let source_position = target_index as f64 * source_rate / target_rate;
+        let left_index = source_position.floor() as usize;
+        let right_index = (left_index + 1).min(samples.len() - 1);
+        let fraction = source_position - left_index as f64;
+        let sample =
+            samples[left_index] as f64 * (1.0 - fraction) + samples[right_index] as f64 * fraction;
+        output.push(
+            sample
+                .round()
+                .clamp(f64::from(i16::MIN), f64::from(i16::MAX)) as i16,
+        );
+    }
+
+    output
 }
 
 pub fn convert_i16_to_i16(sample: i16) -> i16 {

@@ -1,6 +1,6 @@
 slint::include_modules!();
 
-use crate::settings::AppSettings;
+use crate::settings::{AI2NPU_DEFAULT_MODEL, AppSettings};
 use slint::{ComponentHandle, SharedString};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
@@ -141,7 +141,7 @@ impl UiController {
 fn model_label(model: &str) -> &str {
     let trimmed = model.trim();
     if trimmed.is_empty() {
-        "whisper-large-v3"
+        AI2NPU_DEFAULT_MODEL
     } else {
         trimmed
     }
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn empty_model_label_uses_default_transcription_model() {
-        assert_eq!(model_label(""), "whisper-large-v3");
+        assert_eq!(model_label(""), "openai/whisper-large-v3-turbo");
         assert_eq!(model_label(" custom "), "custom");
     }
 }

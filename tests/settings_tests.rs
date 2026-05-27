@@ -17,6 +17,10 @@ fn defaults_create_ai2npu_and_groq_profiles() {
 
     assert_eq!(settings.active_profile().name, "ai2npu");
     assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
+    assert_eq!(
+        settings.active_profile().model,
+        "openai/whisper-large-v3-turbo"
+    );
     assert_eq!(settings.api_profiles[1].name, "groq");
     assert_eq!(
         settings.api_profiles[1].base_url,
@@ -31,6 +35,10 @@ fn default_active_profile_is_ai2npu_without_normalization() {
 
     assert_eq!(settings.active_profile().name, "ai2npu");
     assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
+    assert_eq!(
+        settings.active_profile().model,
+        "openai/whisper-large-v3-turbo"
+    );
 }
 
 #[test]
@@ -43,6 +51,10 @@ fn active_profile_falls_back_to_ai2npu_when_profiles_are_empty() {
 
     assert_eq!(settings.active_profile().name, "ai2npu");
     assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
+    assert_eq!(
+        settings.active_profile().model,
+        "openai/whisper-large-v3-turbo"
+    );
 }
 
 #[test]

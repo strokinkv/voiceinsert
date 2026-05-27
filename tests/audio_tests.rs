@@ -3,6 +3,7 @@ use voiceinsert::audio::recorder::{
     AudioDevice, append_limited_samples, convert_f32_to_i16, convert_f64_to_i16, convert_i8_to_i16,
     convert_i24_to_i16, convert_i32_to_i16, convert_i64_to_i16, convert_u8_to_i16,
     convert_u16_to_i16, convert_u32_to_i16, convert_u64_to_i16, encode_wav_mono_16khz_i16,
+    resample_linear_i16,
 };
 use voiceinsert::settings::RecordingMode;
 
@@ -51,6 +52,26 @@ fn wav_encoding_writes_riff_wave_header() {
 
     assert_eq!(&bytes[0..4], b"RIFF");
     assert_eq!(&bytes[8..12], b"WAVE");
+}
+
+#[test]
+fn wav_encoding_matches_ai2npu_required_format() {
+    let bytes = encode_wav_mono_16khz_i16(&[0, i16::MAX, i16::MIN]).unwrap();
+
+    assert_eq!(u16::from_le_bytes(bytes[22..24].try_into().unwrap()), 1);
+    assert_eq!(
+        u32::from_le_bytes(bytes[24..28].try_into().unwrap()),
+        16_000
+    );
+    assert_eq!(u16::from_le_bytes(bytes[34..36].try_into().unwrap()), 16);
+}
+
+#[test]
+fn resampling_converts_common_capture_rate_to_ai2npu_rate() {
+    let source = vec![0; 48_000];
+    let output = resample_linear_i16(&source, 48_000, 16_000);
+
+    assert_eq!(output.len(), 16_000);
 }
 
 #[test]

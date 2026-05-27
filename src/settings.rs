@@ -7,6 +7,8 @@ use std::sync::LazyLock;
 
 use crate::paths::AppPaths;
 
+pub const AI2NPU_DEFAULT_MODEL: &str = "openai/whisper-large-v3-turbo";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum RecordingMode {
     Toggle,
@@ -299,7 +301,7 @@ fn ai2npu_profile() -> ApiProfile {
         id: "ai2npu".to_string(),
         name: "ai2npu".to_string(),
         base_url: "http://localhost:9555".to_string(),
-        model: String::new(),
+        model: AI2NPU_DEFAULT_MODEL.to_string(),
         language: String::new(),
         temperature: 0.2,
         request_timeout_seconds: 120,

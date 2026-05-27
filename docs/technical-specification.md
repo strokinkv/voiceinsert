@@ -78,7 +78,7 @@ API key хранится отдельно для каждого профиля �
 
 Профили по умолчанию:
 
-- `ai2npu`: первый и основной профиль, `http://localhost:9555`;
+- `ai2npu`: первый и основной профиль, `http://localhost:9555`, модель `openai/whisper-large-v3-turbo`;
 - `groq`: `https://api.groq.com/openai/`, без API key, модель `whisper-large-v3`.
 
 Старые локальные профили `Default` или `wlast` с Base URL `http://127.0.0.1:9573` мигрируют в `ai2npu` с Base URL `http://localhost:9555`.
@@ -114,12 +114,14 @@ POST {base_url}/v1/audio/translations
 - `file`: WAV-аудио;
 - `model`: выбранная модель;
 - `language`: если задан;
+- `response_format`: `json`;
 - `temperature`: если задан.
 
 Поля запроса перевода:
 
 - `file`: WAV-аудио;
 - `model`: выбранная модель;
+- `response_format`: `json`;
 - `temperature`: если задан.
 
 Ожидаемый успешный ответ:
@@ -134,7 +136,8 @@ POST {base_url}/v1/audio/translations
 
 ## 8. Аудио
 
-- Формат записи: WAV.
+- Формат отправляемого аудио: WAV, mono, 16 kHz, signed 16-bit little-endian PCM.
+- Аудио с устройства ввода приводится к mono и ресемплится в 16 kHz перед отправкой.
 - WAV-параметры не доступны пользователю.
 - Пользователь выбирает только устройство ввода.
 - В GUI должны отображаться полные Windows CoreAudio friendly names устройств ввода, а не обрезанные WinMM ProductName.
@@ -332,7 +335,7 @@ GUI поддерживает:
 4. Настройки открываются из tray menu.
 5. По умолчанию создаются профили `ai2npu` и `groq`.
 6. `ai2npu` является первым активным профилем.
-7. `ai2npu` указывает на `http://localhost:9555`.
+7. `ai2npu` указывает на `http://localhost:9555` и использует модель `openai/whisper-large-v3-turbo`.
 8. `groq` указывает на `https://api.groq.com/openai/`, создается без API key и использует `whisper-large-v3`.
 9. Можно создать, выбрать и удалить API-профиль.
 10. Загрузка моделей выполняется через `GET {base_url}/v1/models` выбранного профиля.

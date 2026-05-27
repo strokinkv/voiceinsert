@@ -1,6 +1,8 @@
 use crate::api::endpoints::endpoint;
 use serde::Deserialize;
 
+pub const AUDIO_RESPONSE_FORMAT: &str = "json";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AudioRequestKind {
     Transcription,
@@ -62,7 +64,8 @@ pub async fn send_audio(
         .mime_str("audio/wav")?;
     let mut form = reqwest::multipart::Form::new()
         .part("file", file)
-        .text("model", audio.model.to_string());
+        .text("model", audio.model.to_string())
+        .text("response_format", AUDIO_RESPONSE_FORMAT);
 
     if audio.kind == AudioRequestKind::Transcription
         && let Some(language) = audio.language.filter(|value| !value.trim().is_empty())
@@ -95,7 +98,10 @@ pub async fn send_audio(
 
 #[cfg(test)]
 mod tests {
-    use super::{AudioRequestKind, AudioTextResponse, audio_endpoint_path, sanitize_api_error};
+    use super::{
+        AUDIO_RESPONSE_FORMAT, AudioRequestKind, AudioTextResponse, audio_endpoint_path,
+        sanitize_api_error,
+    };
 
     #[test]
     fn audio_endpoint_path_matches_request_kind() {
@@ -107,6 +113,11 @@ mod tests {
             audio_endpoint_path(AudioRequestKind::Translation),
             "/v1/audio/translations"
         );
+    }
+
+    #[test]
+    fn audio_response_format_matches_ai2npu_json_contract() {
+        assert_eq!(AUDIO_RESPONSE_FORMAT, "json");
     }
 
     #[test]
