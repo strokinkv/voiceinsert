@@ -1,3 +1,4 @@
+use crate::hotkeys::matcher::normalize_hotkey;
 use serde::de::{self, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
@@ -204,8 +205,9 @@ impl Default for AppSettings {
 impl AppSettings {
     pub fn normalized(mut self) -> Self {
         self.settings_version = 8;
-        self.hotkey = normalize_hotkey_or(&self.hotkey, "Ctrl+Space");
-        self.translation_hotkey = normalize_hotkey_or(&self.translation_hotkey, "Alt+Y");
+        self.hotkey = normalize_hotkey(&self.hotkey).unwrap_or_else(|_| "Ctrl+Space".to_string());
+        self.translation_hotkey =
+            normalize_hotkey(&self.translation_hotkey).unwrap_or_else(|_| "Alt+Y".to_string());
 
         if self.hotkey.eq_ignore_ascii_case(&self.translation_hotkey) {
             self.translation_hotkey = if self.hotkey.eq_ignore_ascii_case("Alt+Y") {
@@ -321,15 +323,6 @@ fn groq_profile() -> ApiProfile {
 fn is_groq_profile(profile: &ApiProfile) -> bool {
     profile.name.eq_ignore_ascii_case("groq")
         || profile.base_url.to_ascii_lowercase().contains("groq.com")
-}
-
-fn normalize_hotkey_or(value: &str, fallback: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        fallback.to_string()
-    } else {
-        trimmed.to_string()
-    }
 }
 
 fn clamp_f64(value: f64, min: f64, max: f64) -> f64 {

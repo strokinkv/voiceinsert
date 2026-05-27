@@ -56,6 +56,32 @@ fn default_hotkeys_and_language_match_spec() {
 }
 
 #[test]
+fn invalid_hotkeys_fall_back_to_defaults() {
+    let settings = AppSettings {
+        hotkey: "Y".to_string(),
+        translation_hotkey: "Unknown+Key".to_string(),
+        ..AppSettings::default()
+    }
+    .normalized();
+
+    assert_eq!(settings.hotkey, "Ctrl+Space");
+    assert_eq!(settings.translation_hotkey, "Alt+Y");
+}
+
+#[test]
+fn hotkeys_are_canonicalized_during_normalization() {
+    let settings = AppSettings {
+        hotkey: "space+ctrl".to_string(),
+        translation_hotkey: "y+alt".to_string(),
+        ..AppSettings::default()
+    }
+    .normalized();
+
+    assert_eq!(settings.hotkey, "Ctrl+Space");
+    assert_eq!(settings.translation_hotkey, "Alt+Y");
+}
+
+#[test]
 fn partial_camel_case_settings_deserialize_and_normalize_profiles() {
     let settings: AppSettings = serde_json::from_str(
         r#"{
