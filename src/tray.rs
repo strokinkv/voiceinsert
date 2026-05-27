@@ -111,9 +111,9 @@ impl RuntimeTray {
 
     pub fn next_command(&mut self) -> Option<TrayCommand> {
         let event = tray_icon::menu::MenuEvent::receiver().try_recv().ok()?;
-        if event.id == *self.settings_item.id() {
+        if event.id == self.settings_item.id() {
             Some(TrayCommand::Settings)
-        } else if event.id == *self.exit_item.id() {
+        } else if event.id == self.exit_item.id() {
             Some(TrayCommand::Exit)
         } else {
             None

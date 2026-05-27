@@ -15,6 +15,7 @@ pub enum UiCommand {
 
 pub struct UiController {
     settings_window: Option<SettingsWindow>,
+    recording_overlay: Option<RecordingOverlay>,
     command_tx: Sender<UiCommand>,
     command_rx: Receiver<UiCommand>,
 }
@@ -24,6 +25,7 @@ impl UiController {
         let (command_tx, command_rx) = std::sync::mpsc::channel();
         Self {
             settings_window: None,
+            recording_overlay: None,
             command_tx,
             command_rx,
         }
@@ -67,6 +69,36 @@ impl UiController {
         Ok(())
     }
 
+    pub fn show_recording_overlay(&mut self) -> anyhow::Result<()> {
+        let overlay = self.overlay()?;
+        overlay.set_status_text(SharedString::from("Recording"));
+        overlay.set_level(0.0);
+        overlay.set_is_silent(false);
+        overlay.show()?;
+        Ok(())
+    }
+
+    pub fn set_overlay_level(&mut self, level: f32, silence_threshold: f32) {
+        if let Some(overlay) = &self.recording_overlay {
+            let level = level.clamp(0.0, 1.0);
+            overlay.set_level(level);
+            overlay.set_is_silent(level <= silence_threshold.clamp(0.0, 1.0));
+        }
+    }
+
+    pub fn set_overlay_status(&mut self, status: &str) -> anyhow::Result<()> {
+        let overlay = self.overlay()?;
+        overlay.set_status_text(SharedString::from(status));
+        overlay.show()?;
+        Ok(())
+    }
+
+    pub fn hide_overlay(&self) {
+        if let Some(overlay) = &self.recording_overlay {
+            let _ = overlay.hide();
+        }
+    }
+
     pub fn set_status(&self, message: impl Into<SharedString>) {
         if let Some(window) = &self.settings_window {
             window.set_status_text(message.into());
@@ -83,6 +115,17 @@ impl UiController {
             }
         }
         commands
+    }
+
+    fn overlay(&mut self) -> anyhow::Result<RecordingOverlay> {
+        match &self.recording_overlay {
+            Some(overlay) => Ok(overlay.clone_strong()),
+            None => {
+                let overlay = RecordingOverlay::new()?;
+                self.recording_overlay = Some(overlay.clone_strong());
+                Ok(overlay)
+            }
+        }
     }
 }
 

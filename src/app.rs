@@ -18,7 +18,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub fn run() -> anyhow::Result<()> {
     let _instance = SingleInstanceGuard::acquire("VoiceInsertAppMutex")?;
@@ -36,12 +36,14 @@ pub struct AppRuntime {
     api_keys: BTreeMap<String, String>,
     http: reqwest::Client,
     tokio: tokio::runtime::Runtime,
+    background_tx: Sender<BackgroundEvent>,
+    background_rx: Receiver<BackgroundEvent>,
     state: VoiceInsertState,
     tray: RuntimeTray,
     ui: UiController,
     hotkeys: GlobalHotkeyEvents,
     recorder: Option<Recorder>,
-    level_rx: Option<Receiver<f32>>,
+    level_rx: Option<Receiver<LevelSample>>,
     sounds: SoundService,
     clipboard: ClipboardInserter,
     last_error: LastErrorState,
@@ -82,6 +84,7 @@ impl AppRuntime {
             .timeout(Duration::from_secs(settings.request_timeout_seconds))
             .build()?;
         let tokio = tokio::runtime::Runtime::new()?;
+        let (background_tx, background_rx) = std::sync::mpsc::channel();
 
         Ok(Self {
             settings,
@@ -89,6 +92,8 @@ impl AppRuntime {
             api_keys,
             http,
             tokio,
+            background_tx,
+            background_rx,
             state,
             tray,
             ui,
@@ -123,6 +128,7 @@ impl AppRuntime {
             tracing::error!(%message, "runtime tick failed");
             self.state.mark_error();
             self.tray.set_state(TrayState::Error);
+            let _ = self.ui.set_overlay_status("Error");
             let _ = self.sounds.play(SoundKind::Error);
         }
     }
@@ -142,6 +148,7 @@ impl AppRuntime {
             self.handle_ui_command(command)?;
         }
 
+        self.process_background_events();
         self.process_level_events();
         Ok(())
     }
@@ -168,24 +175,25 @@ impl AppRuntime {
             }
             UiCommand::LoadModels => {
                 let profile = self.settings.active_profile();
-                let api_key = api_key_for_profile(&self.api_keys, &profile.id);
-                let models =
-                    self.tokio
-                        .block_on(load_models(&self.http, &profile.base_url, api_key))?;
-                self.ui
-                    .set_status(format!("Loaded models: {}.", models.len()));
+                self.ui.set_status("Loading models...");
+                spawn_load_models_task(
+                    self.tokio.handle().clone(),
+                    self.http.clone(),
+                    profile.base_url.clone(),
+                    api_key_for_profile(&self.api_keys, &profile.id).to_string(),
+                    self.background_tx.clone(),
+                )?;
             }
             UiCommand::TestApiConnection => {
                 let profile = self.settings.active_profile();
-                let api_key = api_key_for_profile(&self.api_keys, &profile.id);
-                let result = self
-                    .tokio
-                    .block_on(check_profile(&self.http, profile, api_key));
-                if result.is_healthy {
-                    self.ui.set_status(result.message);
-                } else {
-                    anyhow::bail!("{}", result.message);
-                }
+                self.ui.set_status("Checking API connection...");
+                spawn_health_check_task(
+                    self.tokio.handle().clone(),
+                    self.http.clone(),
+                    profile.clone(),
+                    api_key_for_profile(&self.api_keys, &profile.id).to_string(),
+                    self.background_tx.clone(),
+                )?;
             }
             UiCommand::OpenLogsFolder => {
                 open_folder(&self.paths.logs_dir())?;
@@ -216,6 +224,7 @@ impl AppRuntime {
             tracing::error!(%message, "failed to handle hotkey action");
             self.state.mark_error();
             self.tray.set_state(TrayState::Error);
+            let _ = self.ui.set_overlay_status("Error");
             let _ = self.sounds.play(SoundKind::Error);
         }
     }
@@ -226,13 +235,15 @@ impl AppRuntime {
             StateCommand::StartRecording(kind) => {
                 tracing::info!(?kind, "recording started");
                 self.start_recording()?;
+                self.ui.show_recording_overlay()?;
                 self.tray.set_state(TrayState::Recording);
-                self.sounds.play(SoundKind::Start)?;
+                let _ = self.sounds.play(SoundKind::Start);
             }
             StateCommand::StopAndTranscribe(kind) => {
                 tracing::info!(?kind, "recording stopped");
                 self.tray.set_state(TrayState::Transcribing);
-                self.sounds.play(SoundKind::Stop)?;
+                self.ui.set_overlay_status("Transcribing")?;
+                let _ = self.sounds.play(SoundKind::Stop);
                 self.stop_recording_and_insert(kind)?;
             }
         }
@@ -252,9 +263,13 @@ impl AppRuntime {
             ..RecorderConfig::default()
         });
         let (level_tx, level_rx) = std::sync::mpsc::channel();
+        let mut last_level_at = Instant::now();
 
         recorder.start(move |level| {
-            let _ = send_level(&level_tx, level);
+            let now = Instant::now();
+            let delta_ms = now.duration_since(last_level_at).as_millis() as u64;
+            last_level_at = now;
+            let _ = send_level(&level_tx, level, delta_ms);
         })?;
 
         self.recorder = Some(recorder);
@@ -271,28 +286,54 @@ impl AppRuntime {
         self.level_rx = None;
 
         let profile = self.settings.active_profile();
-        let api_key = api_key_for_profile(&self.api_keys, &profile.id);
-        let model = model_for_request(&profile.model);
-        let language = non_empty_str(&profile.language);
-        let text = self.tokio.block_on(send_audio(
-            &self.http,
-            SendAudioRequest {
-                base_url: &profile.base_url,
-                api_key,
-                model,
-                language,
-                temperature: Some(profile.temperature),
+        spawn_voice_insert_task(
+            self.tokio.handle().clone(),
+            self.http.clone(),
+            self.clipboard,
+            AudioTask {
+                base_url: profile.base_url.clone(),
+                api_key: api_key_for_profile(&self.api_keys, &profile.id).to_string(),
+                model: model_for_request(&profile.model).to_string(),
+                language: non_empty_str(&profile.language).map(str::to_string),
+                temperature: profile.temperature,
                 wav_bytes,
                 kind,
+                target_window: active_window(),
             },
-        ))?;
-
-        self.state.mark_inserting();
-        self.tray.set_state(TrayState::Idle);
-        self.tokio
-            .block_on(self.clipboard.insert_text(&text, active_window()))?;
-        self.state.mark_idle();
+            self.background_tx.clone(),
+        )?;
         Ok(())
+    }
+
+    fn process_background_events(&mut self) {
+        loop {
+            match self.background_rx.try_recv() {
+                Ok(BackgroundEvent::Status(message)) => self.ui.set_status(message),
+                Ok(BackgroundEvent::Error(message)) => {
+                    self.last_error.set(message.clone());
+                    self.ui.set_status(message);
+                }
+                Ok(BackgroundEvent::VoiceInsertionStarted) => {
+                    self.state.mark_inserting();
+                    let _ = self.ui.set_overlay_status("Inserting");
+                }
+                Ok(BackgroundEvent::VoiceInsertionComplete(Ok(()))) => {
+                    self.state.mark_idle();
+                    self.tray.set_state(TrayState::Idle);
+                    self.ui.hide_overlay();
+                }
+                Ok(BackgroundEvent::VoiceInsertionComplete(Err(message))) => {
+                    self.last_error.set(message.clone());
+                    tracing::error!(%message, "voice insertion task failed");
+                    self.state.mark_error();
+                    self.tray.set_state(TrayState::Error);
+                    let _ = self.ui.set_overlay_status("Error");
+                    let _ = self.sounds.play(SoundKind::Error);
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => break,
+            }
+        }
     }
 
     fn process_level_events(&mut self) {
@@ -307,14 +348,17 @@ impl AppRuntime {
             }
         }
 
-        for level in levels {
-            let command = self.state.level_changed(level, 16);
+        for sample in levels {
+            self.ui
+                .set_overlay_level(sample.level, self.state.silence_threshold);
+            let command = self.state.level_changed(sample.level, sample.delta_ms);
             if let Err(error) = self.apply_state_command(command) {
                 let message = error.to_string();
                 self.last_error.set(message.clone());
                 tracing::error!(%message, "failed to process audio level");
                 self.state.mark_error();
                 self.tray.set_state(TrayState::Error);
+                let _ = self.ui.set_overlay_status("Error");
                 let _ = self.sounds.play(SoundKind::Error);
                 break;
             }
@@ -322,8 +366,133 @@ impl AppRuntime {
     }
 }
 
-fn send_level(level_tx: &Sender<f32>, level: f32) -> Result<(), std::sync::mpsc::SendError<f32>> {
-    level_tx.send(level)
+#[derive(Debug, Clone, Copy)]
+struct LevelSample {
+    level: f32,
+    delta_ms: u64,
+}
+
+#[derive(Debug)]
+enum BackgroundEvent {
+    Status(String),
+    Error(String),
+    VoiceInsertionStarted,
+    VoiceInsertionComplete(Result<(), String>),
+}
+
+struct AudioTask {
+    base_url: String,
+    api_key: String,
+    model: String,
+    language: Option<String>,
+    temperature: f64,
+    wav_bytes: Vec<u8>,
+    kind: AudioRequestKind,
+    target_window: Option<isize>,
+}
+
+fn spawn_voice_insert_task(
+    handle: tokio::runtime::Handle,
+    http: reqwest::Client,
+    clipboard: ClipboardInserter,
+    task: AudioTask,
+    events: Sender<BackgroundEvent>,
+) -> anyhow::Result<()> {
+    std::thread::Builder::new()
+        .name("voiceinsert-api".to_string())
+        .spawn(move || {
+            let AudioTask {
+                base_url,
+                api_key,
+                model,
+                language,
+                temperature,
+                wav_bytes,
+                kind,
+                target_window,
+            } = task;
+            let completion = handle.block_on(async {
+                let text = send_audio(
+                    &http,
+                    SendAudioRequest {
+                        base_url: &base_url,
+                        api_key: &api_key,
+                        model: &model,
+                        language: language.as_deref(),
+                        temperature: Some(temperature),
+                        wav_bytes,
+                        kind,
+                    },
+                )
+                .await?;
+
+                let _ = events.send(BackgroundEvent::VoiceInsertionStarted);
+                clipboard.insert_text(&text, target_window).await
+            });
+
+            let _ = events.send(BackgroundEvent::VoiceInsertionComplete(
+                completion.map_err(|error| error.to_string()),
+            ));
+        })?;
+
+    Ok(())
+}
+
+fn spawn_load_models_task(
+    handle: tokio::runtime::Handle,
+    http: reqwest::Client,
+    base_url: String,
+    api_key: String,
+    events: Sender<BackgroundEvent>,
+) -> anyhow::Result<()> {
+    std::thread::Builder::new()
+        .name("voiceinsert-load-models".to_string())
+        .spawn(move || {
+            let result = handle.block_on(load_models(&http, &base_url, &api_key));
+            match result {
+                Ok(models) => {
+                    let _ = events.send(BackgroundEvent::Status(format!(
+                        "Loaded models: {}.",
+                        models.len()
+                    )));
+                }
+                Err(error) => {
+                    let _ = events.send(BackgroundEvent::Error(error.to_string()));
+                }
+            }
+        })?;
+
+    Ok(())
+}
+
+fn spawn_health_check_task(
+    handle: tokio::runtime::Handle,
+    http: reqwest::Client,
+    profile: crate::settings::ApiProfile,
+    api_key: String,
+    events: Sender<BackgroundEvent>,
+) -> anyhow::Result<()> {
+    std::thread::Builder::new()
+        .name("voiceinsert-health".to_string())
+        .spawn(move || {
+            let result = handle.block_on(check_profile(&http, &profile, &api_key));
+            let event = if result.is_healthy {
+                BackgroundEvent::Status(result.message)
+            } else {
+                BackgroundEvent::Error(result.message)
+            };
+            let _ = events.send(event);
+        })?;
+
+    Ok(())
+}
+
+fn send_level(
+    level_tx: &Sender<LevelSample>,
+    level: f32,
+    delta_ms: u64,
+) -> Result<(), std::sync::mpsc::SendError<LevelSample>> {
+    level_tx.send(LevelSample { level, delta_ms })
 }
 
 fn api_key_for_profile<'a>(api_keys: &'a BTreeMap<String, String>, profile_id: &str) -> &'a str {
