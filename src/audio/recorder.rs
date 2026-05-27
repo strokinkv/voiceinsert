@@ -1,7 +1,7 @@
 use crate::audio::levels::peak_level_i16;
 use anyhow::Context;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
+use cpal::{I24, SampleFormat, SampleRate, Stream, StreamConfig};
 use hound::{SampleFormat as WavSampleFormat, WavSpec, WavWriter};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
@@ -113,6 +113,21 @@ impl Recorder {
         let err_fn = |error| tracing::warn!(%error, "input audio stream error");
 
         let stream = match sample_format {
+            SampleFormat::I8 => device.build_input_stream(
+                &stream_config,
+                move |data: &[i8], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_i8_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
             SampleFormat::I16 => device.build_input_stream(
                 &stream_config,
                 move |data: &[i16], _| {
@@ -122,6 +137,66 @@ impl Recorder {
                         &samples,
                         &mut on_level,
                         convert_i16_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
+            SampleFormat::I24 => device.build_input_stream(
+                &stream_config,
+                move |data: &[I24], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_i24_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
+            SampleFormat::I32 => device.build_input_stream(
+                &stream_config,
+                move |data: &[i32], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_i32_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
+            SampleFormat::I64 => device.build_input_stream(
+                &stream_config,
+                move |data: &[i64], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_i64_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
+            SampleFormat::U8 => device.build_input_stream(
+                &stream_config,
+                move |data: &[u8], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_u8_to_i16,
                         max_buffer_samples,
                     );
                 },
@@ -143,6 +218,36 @@ impl Recorder {
                 err_fn,
                 None,
             )?,
+            SampleFormat::U32 => device.build_input_stream(
+                &stream_config,
+                move |data: &[u32], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_u32_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
+            SampleFormat::U64 => device.build_input_stream(
+                &stream_config,
+                move |data: &[u64], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_u64_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
             SampleFormat::F32 => device.build_input_stream(
                 &stream_config,
                 move |data: &[f32], _| {
@@ -152,6 +257,21 @@ impl Recorder {
                         &samples,
                         &mut on_level,
                         convert_f32_to_i16,
+                        max_buffer_samples,
+                    );
+                },
+                err_fn,
+                None,
+            )?,
+            SampleFormat::F64 => device.build_input_stream(
+                &stream_config,
+                move |data: &[f64], _| {
+                    capture_samples(
+                        data,
+                        channels,
+                        &samples,
+                        &mut on_level,
+                        convert_f64_to_i16,
                         max_buffer_samples,
                     );
                 },
@@ -209,14 +329,77 @@ pub fn convert_i16_to_i16(sample: i16) -> i16 {
     sample
 }
 
+pub fn convert_i8_to_i16(sample: i8) -> i16 {
+    signed_to_i16(i64::from(sample), 8)
+}
+
+pub fn convert_i24_to_i16(sample: I24) -> i16 {
+    signed_to_i16(i64::from(sample.inner()), 24)
+}
+
+pub fn convert_i32_to_i16(sample: i32) -> i16 {
+    signed_to_i16(i64::from(sample), 32)
+}
+
+pub fn convert_i64_to_i16(sample: i64) -> i16 {
+    signed_to_i16(sample, 64)
+}
+
+pub fn convert_u8_to_i16(sample: u8) -> i16 {
+    unsigned_to_i16(u64::from(sample), 8)
+}
+
 pub fn convert_u16_to_i16(sample: u16) -> i16 {
-    (i32::from(sample) - 32768).clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16
+    unsigned_to_i16(u64::from(sample), 16)
+}
+
+pub fn convert_u32_to_i16(sample: u32) -> i16 {
+    unsigned_to_i16(u64::from(sample), 32)
+}
+
+pub fn convert_u64_to_i16(sample: u64) -> i16 {
+    unsigned_to_i16(sample, 64)
 }
 
 pub fn convert_f32_to_i16(sample: f32) -> i16 {
     (sample.clamp(-1.0, 1.0) * 32768.0)
         .round()
         .clamp(i16::MIN as f32, i16::MAX as f32) as i16
+}
+
+pub fn convert_f64_to_i16(sample: f64) -> i16 {
+    (sample.clamp(-1.0, 1.0) * 32768.0)
+        .round()
+        .clamp(f64::from(i16::MIN), f64::from(i16::MAX)) as i16
+}
+
+fn signed_to_i16(sample: i64, bits: u32) -> i16 {
+    let negative_full_scale = -(1_i128 << (bits - 1));
+    let positive_full_scale = (1_i128 << (bits - 1)) - 1;
+    let sample = i128::from(sample);
+
+    if sample <= negative_full_scale {
+        return i16::MIN;
+    }
+    if sample >= positive_full_scale {
+        return i16::MAX;
+    }
+
+    if sample < 0 {
+        ((sample as f64 / -(negative_full_scale as f64)) * 32768.0)
+            .round()
+            .clamp(f64::from(i16::MIN), f64::from(i16::MAX)) as i16
+    } else {
+        ((sample as f64 / positive_full_scale as f64) * f64::from(i16::MAX))
+            .round()
+            .clamp(f64::from(i16::MIN), f64::from(i16::MAX)) as i16
+    }
+}
+
+fn unsigned_to_i16(sample: u64, bits: u32) -> i16 {
+    let midpoint = 1_u128 << (bits - 1);
+    let signed = i128::from(sample) - midpoint as i128;
+    signed_to_i16(signed as i64, bits)
 }
 
 fn supported_config(
