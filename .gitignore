@@ -1,17 +1,11 @@
 # Build output
 target/
-bin/
-obj/
 artifacts/
 publish/
-Release/
-Debug/
 *.appx
 *.appxbundle
 *.msix
 *.msixbundle
-*.nupkg
-*.snupkg
 
 # Local sandbox state
 .appdata/
@@ -23,29 +17,17 @@ tmp/
 temp/
 
 # IDE
-.vs/
 .vscode/
 .idea/
-*.DotSettings.user
 *.rsuser
 *.user
 *.suo
 *.userosscache
 
-# Test output
-TestResults/
-coverage/
-CoverageReport/
-*.coverage
-*.coveragexml
-*.cobertura.xml
-*.trx
-
 # Logs and diagnostics
 *.log
 logs/
 Logs/
-*.binlog
 
 # Local app/user data
 settings.json
