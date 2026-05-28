@@ -25,16 +25,18 @@ component NavItem inherits Rectangle {
     in property <bool> selected: false;
     callback clicked();
 
-    height: 30px;
-    background: selected ? #e6f2ee : transparent;
-    border-radius: 4px;
+    height: 38px;
+    background: selected ? #dceee9 : transparent;
+    border-radius: 5px;
 
     Text {
         text: root.label;
         color: selected ? #1f2a28 : #66746e;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: selected ? 600 : 400;
-        horizontal-alignment: center;
+        x: 14px;
+        width: parent.width - 28px;
+        horizontal-alignment: left;
         vertical-alignment: center;
     }
 
@@ -66,6 +68,31 @@ component ActionButton inherits Rectangle {
     }
 }
 
+component PageTitle inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #1f2a28;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+component Label inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #66746e;
+    font-size: 13px;
+}
+
+component InfoLine inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #1f2a28;
+    font-size: 14px;
+}
+
 export component SettingsWindow inherits Window {
     in-out property <string> status-text: "";
     in-out property <string> profile-line: "";
@@ -90,163 +117,151 @@ export component SettingsWindow inherits Window {
     callback clear-logs();
 
     title: "VoiceInsert";
-    width: 760px;
-    height: 530px;
+    width: 820px;
+    height: 520px;
     background: #f6f8f7;
 
-    VerticalLayout {
-        padding: 14px;
-        spacing: 12px;
-
-        Text {
-            text: "VoiceInsert";
-            font-size: 22px;
-            color: #1f2a28;
-        }
-
-        HorizontalLayout {
-            spacing: 8px;
-            NavItem {
-                label: "General";
-                selected: root.selected-page == 0;
-                clicked => { root.selected-page = 0; }
-            }
-            NavItem {
-                label: "Hotkeys";
-                selected: root.selected-page == 1;
-                clicked => { root.selected-page = 1; }
-            }
-            NavItem {
-                label: "Audio";
-                selected: root.selected-page == 2;
-                clicked => { root.selected-page = 2; }
-            }
-            NavItem {
-                label: "API";
-                selected: root.selected-page == 3;
-                clicked => { root.selected-page = 3; }
-            }
-            NavItem {
-                label: "Insertion";
-                selected: root.selected-page == 4;
-                clicked => { root.selected-page = 4; }
-            }
-            NavItem {
-                label: "Sounds";
-                selected: root.selected-page == 5;
-                clicked => { root.selected-page = 5; }
-            }
-            NavItem {
-                label: "Logs";
-                selected: root.selected-page == 6;
-                clicked => { root.selected-page = 6; }
-            }
-        }
+    HorizontalLayout {
+        spacing: 0px;
 
         Rectangle {
-            background: #fcfdfb;
-            border-color: #dde6e1;
-            border-width: 1px;
+            width: 190px;
+            background: #edf3f0;
+            border-color: #d8e4de;
+            border-width: 0px;
 
             VerticalLayout {
-                padding: 16px;
-                spacing: 8px;
+                padding: 18px;
+                spacing: 10px;
 
-                if root.selected-page == 0: VerticalLayout {
-                    spacing: 8px;
-                    Text { text: "Settings"; color: #1f2a28; }
-                    Text { text: root.profile-line; color: #66746e; }
-                    Text { text: root.recording-mode-line; color: #66746e; }
+                Text {
+                    text: "VoiceInsert";
+                    color: #1f2a28;
+                    font-size: 22px;
+                    font-weight: 600;
                 }
 
-                if root.selected-page == 1: VerticalLayout {
-                    spacing: 8px;
-                    Text { text: "Hotkeys"; color: #1f2a28; }
-
-                    Text { text: "Transcription hotkey"; color: #66746e; }
-                    Field { value <=> root.transcription-hotkey; }
-
-                    Text { text: "Translation hotkey"; color: #66746e; }
-                    Field { value <=> root.translation-hotkey; }
+                Text {
+                    text: root.profile-line;
+                    color: #66746e;
+                    font-size: 13px;
                 }
 
-                if root.selected-page == 2: VerticalLayout {
-                    spacing: 8px;
-                    Text { text: "Audio"; color: #1f2a28; }
-                }
+                Rectangle { height: 8px; background: transparent; }
 
-                if root.selected-page == 3: VerticalLayout {
-                    spacing: 8px;
-                    Text { text: "API"; color: #1f2a28; }
-                    Text { text: root.profile-line; color: #66746e; }
-
-                    Text { text: "Base URL"; color: #66746e; }
-                    Field { value <=> root.api-base-url; }
-
-                    Text { text: "Model"; color: #66746e; }
-                    Field { value <=> root.model-name; }
-
-                    HorizontalLayout {
-                        spacing: 8px;
-                        ActionButton {
-                            label: "Models";
-                            fill: #cfddd6;
-                            clicked => { root.load-models(); }
-                        }
-                        ActionButton {
-                            label: "Test";
-                            fill: #cfddd6;
-                            clicked => { root.test-api-connection(); }
-                        }
-                    }
-                }
-
-                if root.selected-page == 4: VerticalLayout {
-                    spacing: 8px;
-                    Text { text: "Insertion"; color: #1f2a28; }
-                }
-
-                if root.selected-page == 5: VerticalLayout {
-                    spacing: 8px;
-                    Text { text: "Sounds"; color: #1f2a28; }
-                }
-
-                if root.selected-page == 6: VerticalLayout {
-                    spacing: 8px;
-                    Text { text: "Logs"; color: #1f2a28; }
-                    HorizontalLayout {
-                        spacing: 8px;
-                        ActionButton {
-                            label: "Open";
-                            fill: #cfddd6;
-                            clicked => { root.open-logs-folder(); }
-                        }
-                        ActionButton {
-                            label: "Clear";
-                            fill: #cfddd6;
-                            clicked => { root.clear-logs(); }
-                        }
-                    }
-                }
+                NavItem { label: "General"; selected: root.selected-page == 0; clicked => { root.selected-page = 0; } }
+                NavItem { label: "Hotkeys"; selected: root.selected-page == 1; clicked => { root.selected-page = 1; } }
+                NavItem { label: "Audio"; selected: root.selected-page == 2; clicked => { root.selected-page = 2; } }
+                NavItem { label: "API"; selected: root.selected-page == 3; clicked => { root.selected-page = 3; } }
+                NavItem { label: "Insertion"; selected: root.selected-page == 4; clicked => { root.selected-page = 4; } }
+                NavItem { label: "Sounds"; selected: root.selected-page == 5; clicked => { root.selected-page = 5; } }
+                NavItem { label: "Logs"; selected: root.selected-page == 6; clicked => { root.selected-page = 6; } }
             }
         }
 
-        HorizontalLayout {
-            spacing: 8px;
-            Text {
-                text: root.status-text;
-                color: #66746e;
-                horizontal-stretch: 1;
+        VerticalLayout {
+            padding: 22px;
+            spacing: 14px;
+
+            Rectangle {
+                background: root.status-text == "" ? #f6f8f7 : #eef6f3;
+                border-color: root.status-text == "" ? #f6f8f7 : #cfe2dc;
+                border-width: 1px;
+                border-radius: 5px;
+                height: 42px;
+
+                Text {
+                    text: root.status-text == "" ? "Ready" : root.status-text;
+                    color: #50615c;
+                    x: 12px;
+                    width: parent.width - 24px;
+                    height: parent.height;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
             }
-            ActionButton {
-                label: "Save";
-                fill: #51b3a2;
-                clicked => { root.save(); }
+
+            Rectangle {
+                background: #fcfdfb;
+                border-color: #dde6e1;
+                border-width: 1px;
+                border-radius: 5px;
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 11px;
+
+                    if root.selected-page == 0: VerticalLayout {
+                        spacing: 12px;
+                        PageTitle { label: "General"; }
+                        InfoLine { label: root.profile-line; }
+                        InfoLine { label: root.recording-mode-line; }
+                    }
+
+                    if root.selected-page == 1: VerticalLayout {
+                        spacing: 10px;
+                        PageTitle { label: "Hotkeys"; }
+
+                        Label { label: "Transcription"; }
+                        Field { value <=> root.transcription-hotkey; }
+
+                        Label { label: "Translation"; }
+                        Field { value <=> root.translation-hotkey; }
+                    }
+
+                    if root.selected-page == 2: VerticalLayout {
+                        spacing: 12px;
+                        PageTitle { label: "Audio"; }
+                    }
+
+                    if root.selected-page == 3: VerticalLayout {
+                        spacing: 10px;
+                        PageTitle { label: "API"; }
+                        InfoLine { label: root.profile-line; }
+
+                        Label { label: "Base URL"; }
+                        Field { value <=> root.api-base-url; }
+
+                        Label { label: "Model"; }
+                        Field { value <=> root.model-name; }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ActionButton { label: "Models"; fill: #cfddd6; clicked => { root.load-models(); } }
+                            ActionButton { label: "Test"; fill: #cfddd6; clicked => { root.test-api-connection(); } }
+                        }
+                    }
+
+                    if root.selected-page == 4: VerticalLayout {
+                        spacing: 12px;
+                        PageTitle { label: "Insertion"; }
+                    }
+
+                    if root.selected-page == 5: VerticalLayout {
+                        spacing: 12px;
+                        PageTitle { label: "Sounds"; }
+                    }
+
+                    if root.selected-page == 6: VerticalLayout {
+                        spacing: 12px;
+                        PageTitle { label: "Logs"; }
+                        InfoLine { label: root.status-text == "" ? "No recent status message." : root.status-text; }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ActionButton { label: "Open"; fill: #cfddd6; clicked => { root.open-logs-folder(); } }
+                            ActionButton { label: "Clear"; fill: #cfddd6; clicked => { root.clear-logs(); } }
+                        }
+                    }
+                }
             }
-            ActionButton {
-                label: "Close";
-                fill: #cfddd6;
-                clicked => { root.close(); }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                ActionButton { label: "Save"; fill: #51b3a2; clicked => { root.save(); } }
+                ActionButton { label: "Close"; fill: #cfddd6; clicked => { root.close(); } }
             }
         }
     }
