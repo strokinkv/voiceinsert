@@ -245,19 +245,6 @@ impl AppSettings {
             self.api_profiles.push(ai2npu_profile());
         }
 
-        for profile in &mut self.api_profiles {
-            let is_legacy_local_profile = profile.name.eq_ignore_ascii_case("Default")
-                || profile.name.eq_ignore_ascii_case("wlast");
-            if is_legacy_local_profile
-                && profile
-                    .base_url
-                    .eq_ignore_ascii_case("http://127.0.0.1:9573")
-            {
-                profile.name = "ai2npu".to_string();
-                profile.base_url = "http://localhost:9555".to_string();
-            }
-        }
-
         if !self
             .api_profiles
             .iter()

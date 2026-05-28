@@ -8,13 +8,7 @@ pub fn serialize_keys(keys: &BTreeMap<String, String>) -> anyhow::Result<Vec<u8>
 
 pub fn deserialize_keys(bytes: &[u8]) -> anyhow::Result<BTreeMap<String, String>> {
     let text = String::from_utf8(bytes.to_vec())?;
-    if text.trim_start().starts_with('{') {
-        Ok(serde_json::from_str(&text)?)
-    } else {
-        let mut keys = BTreeMap::new();
-        keys.insert("default".to_string(), text);
-        Ok(keys)
-    }
+    Ok(serde_json::from_str(&text)?)
 }
 
 pub fn load_api_keys(paths: &AppPaths) -> anyhow::Result<BTreeMap<String, String>> {

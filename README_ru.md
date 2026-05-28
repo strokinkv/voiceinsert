@@ -110,4 +110,4 @@ POST {base_url}/v1/audio/translations
 - Нужен OpenAI-совместимый Audio API с endpoint-ами `/v1/audio/transcriptions`, `/v1/audio/translations` и `/v1/models`.
 - Перевод речи на английский зависит от того, поддерживает ли выбранная модель endpoint переводов.
 - Вставка выполняется через буфер обмена, поэтому поведение может зависеть от активного приложения.
-- Полные имена микрофонов берутся через Windows CoreAudio, а запись выполняется через WinMM/NAudio.
+- Ввод с микрофона записывается через Rust audio backend и перед отправкой в API приводится к mono 16 kHz PCM WAV.

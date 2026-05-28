@@ -152,53 +152,6 @@ fn camel_case_settings_deserialize_profiles_and_active_profile() {
 }
 
 #[test]
-fn legacy_default_profile_migrates_to_ai2npu() {
-    let mut settings = AppSettings::default();
-    settings.api_profiles.clear();
-    settings
-        .api_profiles
-        .push(voiceinsert::settings::ApiProfile {
-            id: "legacy".to_string(),
-            name: "Default".to_string(),
-            base_url: "http://127.0.0.1:9573".to_string(),
-            model: "legacy-model".to_string(),
-            language: "ru".to_string(),
-            temperature: 0.2,
-            request_timeout_seconds: 120,
-        });
-    settings.active_api_profile_id = "legacy".to_string();
-
-    let settings = settings.normalized();
-
-    assert_eq!(settings.active_profile().name, "ai2npu");
-    assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
-    assert_eq!(settings.active_profile().model, "legacy-model");
-}
-
-#[test]
-fn legacy_wlast_profile_migrates_to_ai2npu() {
-    let mut settings = AppSettings::default();
-    settings.api_profiles.clear();
-    settings
-        .api_profiles
-        .push(voiceinsert::settings::ApiProfile {
-            id: "legacy-wlast".to_string(),
-            name: "wlast".to_string(),
-            base_url: "http://127.0.0.1:9573".to_string(),
-            model: "legacy-model".to_string(),
-            language: "ru".to_string(),
-            temperature: 0.2,
-            request_timeout_seconds: 120,
-        });
-    settings.active_api_profile_id = "legacy-wlast".to_string();
-
-    let settings = settings.normalized();
-
-    assert_eq!(settings.active_profile().name, "ai2npu");
-    assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
-}
-
-#[test]
 fn numeric_settings_are_clamped() {
     let settings = AppSettings {
         temperature: 4.2,

@@ -5,7 +5,7 @@
 Requirements:
 
 - Windows 11
-- .NET 10 SDK
+- Rust stable toolchain
 - Inno Setup 6, only for installer builds
 
 Useful commands:
@@ -19,7 +19,7 @@ Useful commands:
 ## Guidelines
 
 - Keep user speech text, audio, and API keys out of logs and test fixtures.
-- Keep UI strings localized in `SettingsTexts`.
+- Keep UI strings and state wiring in the Slint/Rust UI layer.
 - Prefer focused changes with tests for shared behavior.
 - Run `.\scripts\test.ps1` before opening a pull request.
 

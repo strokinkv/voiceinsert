@@ -110,4 +110,4 @@ Normal transcription is not translated by VoiceInsert. If the transcription endp
 - Requires an OpenAI-compatible Audio API with `/v1/audio/transcriptions`, `/v1/audio/translations`, and `/v1/models` endpoints.
 - Speech-to-English translation depends on whether the selected model supports the translations endpoint.
 - Text insertion uses the clipboard, so behavior can depend on the active application.
-- Full microphone names are read through Windows CoreAudio, while recording uses WinMM/NAudio.
+- Microphone input is recorded through the Rust audio backend and converted to mono 16 kHz PCM WAV before API upload.

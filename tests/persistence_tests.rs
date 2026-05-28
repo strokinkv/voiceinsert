@@ -9,7 +9,7 @@ fn app_paths_use_expected_file_names() {
 
     assert!(paths.app_data_dir().ends_with("appdata\\VoiceInsert"));
     assert!(paths.settings_path().ends_with("settings.json"));
-    assert!(paths.secrets_path().ends_with("api-key.dpapi"));
+    assert!(paths.secrets_path().ends_with("api-keys.dpapi"));
     assert!(
         paths
             .logs_dir()
@@ -52,16 +52,6 @@ fn secret_payload_roundtrip_preserves_profile_keys() {
     let decoded = voiceinsert::secrets::deserialize_keys(&encoded).unwrap();
 
     assert_eq!(decoded, keys);
-}
-
-#[test]
-fn legacy_plain_text_secret_deserializes_as_default_key() {
-    let decoded = voiceinsert::secrets::deserialize_keys(b"sk-legacy").unwrap();
-
-    assert_eq!(
-        decoded.get("default").map(String::as_str),
-        Some("sk-legacy")
-    );
 }
 
 #[test]

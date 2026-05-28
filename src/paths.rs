@@ -43,6 +43,6 @@ impl AppPaths {
     }
 
     pub fn secrets_path(&self) -> PathBuf {
-        self.app_data.join("api-key.dpapi")
+        self.app_data.join("api-keys.dpapi")
     }
 }
