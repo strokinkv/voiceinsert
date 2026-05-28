@@ -10,7 +10,7 @@ use crate::clipboard::ClipboardInserter;
 use crate::hotkeys::service::{GlobalHotkeyEvents, HotkeyAction, HotkeyEvents};
 use crate::logging::LastErrorState;
 use crate::paths::AppPaths;
-use crate::settings::{AI2NPU_DEFAULT_MODEL, AppSettings, RecordingMode};
+use crate::settings::{AI2NPU_DEFAULT_MODEL, ApiProfile, AppLanguage, AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
 use crate::ui::{SettingsEdit, UiCommand, UiController};
@@ -157,7 +157,11 @@ impl AppRuntime {
         match command {
             TrayCommand::Settings => {
                 tracing::info!("settings command received");
-                self.ui.open_settings(&self.settings)?;
+                let profile = self.settings.active_profile();
+                self.ui.open_settings(
+                    &self.settings,
+                    api_key_for_profile(&self.api_keys, &profile.id),
+                )?;
                 Ok(false)
             }
             TrayCommand::Exit => {
@@ -178,7 +182,16 @@ impl AppRuntime {
                     crate::api::endpoints::endpoint(&edit.base_url, "/v1/models")?;
                     let old_hotkey = self.settings.hotkey.clone();
                     let old_translation_hotkey = self.settings.translation_hotkey.clone();
+                    let old_language = self.settings.ui_language;
+                    let active_profile_id = self.settings.active_api_profile_id.clone();
+                    let api_key = edit.api_key.trim().to_string();
                     self.settings = apply_settings_edit(self.settings.clone(), edit).normalized();
+                    if api_key.is_empty() {
+                        self.api_keys.remove(&active_profile_id);
+                    } else {
+                        self.api_keys.insert(active_profile_id, api_key);
+                    }
+                    crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
                     if self.settings.hotkey != old_hotkey
                         || self.settings.translation_hotkey != old_translation_hotkey
                     {
@@ -187,9 +200,58 @@ impl AppRuntime {
                             &self.settings.translation_hotkey,
                         )?;
                     }
+                    if self.settings.ui_language != old_language {
+                        self.tray.set_language(self.settings.ui_language);
+                    }
+                    self.clipboard = ClipboardInserter {
+                        restore_clipboard: self.settings.restore_clipboard_content,
+                        delay_before_paste_ms: self.settings.delay_before_paste_milliseconds,
+                        delay_before_restore_ms: self
+                            .settings
+                            .delay_before_clipboard_restore_milliseconds,
+                    };
+                    self.sounds.enabled = self.settings.enable_sounds;
+                    self.state = VoiceInsertState::new(
+                        self.settings.recording_mode,
+                        f32::from(self.settings.silence_threshold_percent) / 100.0,
+                        self.settings.silence_timeout_milliseconds,
+                        self.settings.max_recording_seconds.saturating_mul(1000),
+                    );
+                    self.http = reqwest::Client::builder()
+                        .timeout(Duration::from_secs(self.settings.request_timeout_seconds))
+                        .build()?;
+                    #[cfg(windows)]
+                    crate::autostart::set_enabled(
+                        self.settings.start_with_windows,
+                        &std::env::current_exe()?,
+                    )?;
                 }
                 crate::settings::save_settings(&self.paths, &self.settings)?;
                 self.ui.set_status("Settings saved.");
+            }
+            UiCommand::RefreshDevices => {
+                match crate::audio::recorder::Recorder::list_input_devices() {
+                    Ok(devices) if devices.is_empty() => {
+                        self.ui.set_status("No input devices found.");
+                    }
+                    Ok(devices) => {
+                        let summary = devices
+                            .iter()
+                            .map(|device| device.label.as_str())
+                            .collect::<Vec<_>>()
+                            .join("; ");
+                        self.ui.set_status(format!("Input devices: {summary}"));
+                    }
+                    Err(error) => {
+                        self.ui
+                            .set_status(format!("Failed to list input devices: {error}"));
+                    }
+                }
+            }
+            UiCommand::TestMicrophone => {
+                self.ui.set_status(
+                    "Use Refresh to list devices, then record briefly to test the selected index.",
+                );
             }
             UiCommand::LoadModels => {
                 let profile = self.settings.active_profile();
@@ -212,6 +274,45 @@ impl AppRuntime {
                     api_key_for_profile(&self.api_keys, &profile.id).to_string(),
                     self.background_tx.clone(),
                 )?;
+            }
+            UiCommand::AddApiProfile => {
+                let new_profile = next_api_profile(&self.settings.api_profiles);
+                self.settings.active_api_profile_id = new_profile.id.clone();
+                self.settings.api_profiles.push(new_profile);
+                self.settings = self.settings.clone().normalized();
+                crate::settings::save_settings(&self.paths, &self.settings)?;
+                let profile = self.settings.active_profile();
+                self.ui.open_settings(
+                    &self.settings,
+                    api_key_for_profile(&self.api_keys, &profile.id),
+                )?;
+                self.ui.set_status("API profile added.");
+            }
+            UiCommand::DeleteApiProfile => {
+                let active_profile_id = self.settings.active_api_profile_id.clone();
+                if self.settings.api_profiles.len() > 1 {
+                    self.settings
+                        .api_profiles
+                        .retain(|profile| profile.id != active_profile_id);
+                    self.api_keys.remove(&active_profile_id);
+                    self.settings.active_api_profile_id = self
+                        .settings
+                        .api_profiles
+                        .first()
+                        .map(|profile| profile.id.clone())
+                        .unwrap_or_default();
+                    self.settings = self.settings.clone().normalized();
+                    crate::settings::save_settings(&self.paths, &self.settings)?;
+                    crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
+                    let profile = self.settings.active_profile();
+                    self.ui.open_settings(
+                        &self.settings,
+                        api_key_for_profile(&self.api_keys, &profile.id),
+                    )?;
+                    self.ui.set_status("API profile deleted.");
+                } else {
+                    self.ui.set_status("At least one API profile is required.");
+                }
             }
             UiCommand::OpenLogsFolder => {
                 open_folder(&self.paths.logs_dir())?;
@@ -277,6 +378,7 @@ impl AppRuntime {
             .try_into()
             .unwrap_or(usize::MAX);
         let mut recorder = Recorder::new(RecorderConfig {
+            device_index: self.settings.input_device_index,
             max_buffer_samples,
             ..RecorderConfig::default()
         });
@@ -516,6 +618,32 @@ fn send_level(
 fn apply_settings_edit(mut settings: AppSettings, edit: SettingsEdit) -> AppSettings {
     settings.hotkey = edit.transcription_hotkey.trim().to_string();
     settings.translation_hotkey = edit.translation_hotkey.trim().to_string();
+    settings.recording_mode = parse_recording_mode(&edit.recording_mode);
+    settings.silence_threshold_percent = parse_or_keep(
+        &edit.silence_threshold_percent,
+        settings.silence_threshold_percent,
+    );
+    settings.silence_timeout_milliseconds = parse_or_keep(
+        &edit.silence_timeout_milliseconds,
+        settings.silence_timeout_milliseconds,
+    );
+    settings.max_recording_seconds =
+        parse_or_keep(&edit.max_recording_seconds, settings.max_recording_seconds);
+    settings.input_device_index = parse_optional_usize(&edit.input_device_index);
+    settings.start_with_windows = edit.start_with_windows;
+    settings.ui_language = parse_language(&edit.ui_language);
+    settings.launch_minimized_to_tray = edit.launch_minimized_to_tray;
+    settings.show_floating_recording_window = edit.show_floating_recording_window;
+    settings.enable_sounds = edit.enable_sounds;
+    settings.restore_clipboard_content = edit.restore_clipboard_content;
+    settings.delay_before_paste_milliseconds = parse_or_keep(
+        &edit.delay_before_paste_milliseconds,
+        settings.delay_before_paste_milliseconds,
+    );
+    settings.delay_before_clipboard_restore_milliseconds = parse_or_keep(
+        &edit.delay_before_clipboard_restore_milliseconds,
+        settings.delay_before_clipboard_restore_milliseconds,
+    );
 
     let active_profile_id = settings.active_api_profile_id.clone();
     if let Some(profile) = settings
@@ -523,11 +651,68 @@ fn apply_settings_edit(mut settings: AppSettings, edit: SettingsEdit) -> AppSett
         .iter_mut()
         .find(|profile| profile.id == active_profile_id)
     {
+        profile.name = edit.profile_name.trim().to_string();
         profile.base_url = edit.base_url.trim().to_string();
         profile.model = edit.model.trim().to_string();
+        profile.language = edit.language.trim().to_string();
+        profile.temperature = parse_or_keep(&edit.temperature, profile.temperature);
+        profile.request_timeout_seconds = parse_or_keep(
+            &edit.request_timeout_seconds,
+            profile.request_timeout_seconds,
+        );
     }
 
     settings
+}
+
+fn parse_or_keep<T>(value: &str, fallback: T) -> T
+where
+    T: std::str::FromStr,
+{
+    value.trim().parse().unwrap_or(fallback)
+}
+
+fn parse_recording_mode(value: &str) -> RecordingMode {
+    match value.trim() {
+        "Hold" => RecordingMode::Hold,
+        "SilenceTimeout" => RecordingMode::SilenceTimeout,
+        _ => RecordingMode::Toggle,
+    }
+}
+
+fn parse_optional_usize(value: &str) -> Option<usize> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        trimmed.parse().ok()
+    }
+}
+
+fn parse_language(value: &str) -> AppLanguage {
+    match value.trim() {
+        "English" => AppLanguage::English,
+        _ => AppLanguage::Russian,
+    }
+}
+
+fn next_api_profile(existing: &[ApiProfile]) -> ApiProfile {
+    let mut index = existing.len() + 1;
+    loop {
+        let id = format!("profile-{index}");
+        if !existing.iter().any(|profile| profile.id == id) {
+            return ApiProfile {
+                id: id.clone(),
+                name: id,
+                base_url: "http://localhost:9555".to_string(),
+                model: AI2NPU_DEFAULT_MODEL.to_string(),
+                language: String::new(),
+                temperature: 0.2,
+                request_timeout_seconds: 120,
+            };
+        }
+        index += 1;
+    }
 }
 
 fn api_key_for_profile<'a>(api_keys: &'a BTreeMap<String, String>, profile_id: &str) -> &'a str {
@@ -914,17 +1099,49 @@ mod tests {
         let settings = apply_settings_edit(
             settings,
             SettingsEdit {
+                profile_name: "ai2npu".to_string(),
                 base_url: " http://localhost:9555 ".to_string(),
+                api_key: String::new(),
                 model: " whisper-large-v3 ".to_string(),
+                language: " en ".to_string(),
+                temperature: "0.4".to_string(),
+                request_timeout_seconds: "45".to_string(),
                 transcription_hotkey: " Ctrl+Space ".to_string(),
                 translation_hotkey: " Alt+Y ".to_string(),
+                recording_mode: "Hold".to_string(),
+                silence_threshold_percent: "8".to_string(),
+                silence_timeout_milliseconds: "900".to_string(),
+                max_recording_seconds: "30".to_string(),
+                input_device_index: "2".to_string(),
+                start_with_windows: true,
+                ui_language: "English".to_string(),
+                launch_minimized_to_tray: false,
+                show_floating_recording_window: true,
+                enable_sounds: false,
+                restore_clipboard_content: false,
+                delay_before_paste_milliseconds: "120".to_string(),
+                delay_before_clipboard_restore_milliseconds: "500".to_string(),
             },
         )
         .normalized();
 
         assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
         assert_eq!(settings.active_profile().model, "whisper-large-v3");
+        assert_eq!(settings.active_profile().language, "en");
+        assert_eq!(settings.active_profile().temperature, 0.4);
+        assert_eq!(settings.active_profile().request_timeout_seconds, 45);
         assert_eq!(settings.hotkey, "Ctrl+Space");
         assert_eq!(settings.translation_hotkey, "Alt+Y");
+        assert_eq!(settings.recording_mode, RecordingMode::Hold);
+        assert_eq!(settings.silence_threshold_percent, 8);
+        assert_eq!(settings.silence_timeout_milliseconds, 900);
+        assert_eq!(settings.max_recording_seconds, 30);
+        assert_eq!(settings.input_device_index, Some(2));
+        assert!(settings.start_with_windows);
+        assert!(!settings.launch_minimized_to_tray);
+        assert!(!settings.enable_sounds);
+        assert!(!settings.restore_clipboard_content);
+        assert_eq!(settings.delay_before_paste_milliseconds, 120);
+        assert_eq!(settings.delay_before_clipboard_restore_milliseconds, 500);
     }
 }

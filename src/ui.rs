@@ -1,24 +1,46 @@
 slint::include_modules!();
 
-use crate::settings::{AI2NPU_DEFAULT_MODEL, AppSettings};
+use crate::settings::{AI2NPU_DEFAULT_MODEL, AppLanguage, AppSettings, RecordingMode};
 use slint::{ComponentHandle, SharedString};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiCommand {
     Save,
+    RefreshDevices,
+    TestMicrophone,
     LoadModels,
     TestApiConnection,
+    AddApiProfile,
+    DeleteApiProfile,
     OpenLogsFolder,
     ClearLogs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingsEdit {
+    pub profile_name: String,
     pub base_url: String,
+    pub api_key: String,
     pub model: String,
+    pub language: String,
+    pub temperature: String,
+    pub request_timeout_seconds: String,
     pub transcription_hotkey: String,
     pub translation_hotkey: String,
+    pub recording_mode: String,
+    pub silence_threshold_percent: String,
+    pub silence_timeout_milliseconds: String,
+    pub max_recording_seconds: String,
+    pub input_device_index: String,
+    pub start_with_windows: bool,
+    pub ui_language: String,
+    pub launch_minimized_to_tray: bool,
+    pub show_floating_recording_window: bool,
+    pub enable_sounds: bool,
+    pub restore_clipboard_content: bool,
+    pub delay_before_paste_milliseconds: String,
+    pub delay_before_clipboard_restore_milliseconds: String,
 }
 
 pub struct UiController {
@@ -39,7 +61,7 @@ impl UiController {
         }
     }
 
-    pub fn open_settings(&mut self, settings: &AppSettings) -> anyhow::Result<()> {
+    pub fn open_settings(&mut self, settings: &AppSettings, api_key: &str) -> anyhow::Result<()> {
         let window = match &self.settings_window {
             Some(window) => window.clone_strong(),
             None => {
@@ -52,14 +74,49 @@ impl UiController {
 
         let profile = settings.active_profile();
         window.set_profile_line(SharedString::from(format!("Profile: {}", profile.name)));
+        window.set_profile_name(SharedString::from(profile.name.as_str()));
         window.set_api_base_url(SharedString::from(profile.base_url.as_str()));
+        window.set_api_key(SharedString::from(api_key));
         window.set_model_name(SharedString::from(model_label(&profile.model)));
+        window.set_language(SharedString::from(profile.language.as_str()));
+        window.set_temperature(SharedString::from(format!("{:.1}", profile.temperature)));
+        window.set_request_timeout_seconds(SharedString::from(
+            profile.request_timeout_seconds.to_string(),
+        ));
         window.set_transcription_hotkey(SharedString::from(settings.hotkey.as_str()));
         window.set_translation_hotkey(SharedString::from(settings.translation_hotkey.as_str()));
-        window.set_recording_mode_line(SharedString::from(format!(
-            "Recording: {:?}",
-            settings.recording_mode
+        window.set_recording_mode(SharedString::from(recording_mode_label(
+            settings.recording_mode,
         )));
+        window.set_silence_threshold_percent(SharedString::from(
+            settings.silence_threshold_percent.to_string(),
+        ));
+        window.set_silence_timeout_milliseconds(SharedString::from(
+            settings.silence_timeout_milliseconds.to_string(),
+        ));
+        window.set_max_recording_seconds(SharedString::from(
+            settings.max_recording_seconds.to_string(),
+        ));
+        window.set_input_device_index(SharedString::from(
+            settings
+                .input_device_index
+                .map(|index| index.to_string())
+                .unwrap_or_default(),
+        ));
+        window.set_start_with_windows(settings.start_with_windows);
+        window.set_ui_language(SharedString::from(language_label(settings.ui_language)));
+        window.set_launch_minimized_to_tray(settings.launch_minimized_to_tray);
+        window.set_show_floating_recording_window(settings.show_floating_recording_window);
+        window.set_enable_sounds(settings.enable_sounds);
+        window.set_restore_clipboard_content(settings.restore_clipboard_content);
+        window.set_delay_before_paste_milliseconds(SharedString::from(
+            settings.delay_before_paste_milliseconds.to_string(),
+        ));
+        window.set_delay_before_clipboard_restore_milliseconds(SharedString::from(
+            settings
+                .delay_before_clipboard_restore_milliseconds
+                .to_string(),
+        ));
         window.set_status_text(SharedString::from(format!(
             "Profile: {} ({})",
             profile.name, profile.base_url
@@ -119,10 +176,32 @@ impl UiController {
     pub fn settings_edit(&self) -> Option<SettingsEdit> {
         let window = self.settings_window.as_ref()?;
         Some(SettingsEdit {
+            profile_name: window.get_profile_name().to_string(),
             base_url: window.get_api_base_url().to_string(),
+            api_key: window.get_api_key().to_string(),
             model: window.get_model_name().to_string(),
+            language: window.get_language().to_string(),
+            temperature: window.get_temperature().to_string(),
+            request_timeout_seconds: window.get_request_timeout_seconds().to_string(),
             transcription_hotkey: window.get_transcription_hotkey().to_string(),
             translation_hotkey: window.get_translation_hotkey().to_string(),
+            recording_mode: window.get_recording_mode().to_string(),
+            silence_threshold_percent: window.get_silence_threshold_percent().to_string(),
+            silence_timeout_milliseconds: window.get_silence_timeout_milliseconds().to_string(),
+            max_recording_seconds: window.get_max_recording_seconds().to_string(),
+            input_device_index: window.get_input_device_index().to_string(),
+            start_with_windows: window.get_start_with_windows(),
+            ui_language: window.get_ui_language().to_string(),
+            launch_minimized_to_tray: window.get_launch_minimized_to_tray(),
+            show_floating_recording_window: window.get_show_floating_recording_window(),
+            enable_sounds: window.get_enable_sounds(),
+            restore_clipboard_content: window.get_restore_clipboard_content(),
+            delay_before_paste_milliseconds: window
+                .get_delay_before_paste_milliseconds()
+                .to_string(),
+            delay_before_clipboard_restore_milliseconds: window
+                .get_delay_before_clipboard_restore_milliseconds()
+                .to_string(),
         })
     }
 
@@ -147,6 +226,21 @@ fn model_label(model: &str) -> &str {
     }
 }
 
+fn recording_mode_label(mode: RecordingMode) -> &'static str {
+    match mode {
+        RecordingMode::Toggle => "Toggle",
+        RecordingMode::Hold => "Hold",
+        RecordingMode::SilenceTimeout => "SilenceTimeout",
+    }
+}
+
+fn language_label(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::Russian => "Russian",
+        AppLanguage::English => "English",
+    }
+}
+
 impl Default for UiController {
     fn default() -> Self {
         Self::new()
@@ -167,6 +261,16 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
     });
 
     let tx = command_tx.clone();
+    window.on_refresh_devices(move || {
+        let _ = tx.send(UiCommand::RefreshDevices);
+    });
+
+    let tx = command_tx.clone();
+    window.on_test_microphone(move || {
+        let _ = tx.send(UiCommand::TestMicrophone);
+    });
+
+    let tx = command_tx.clone();
     window.on_load_models(move || {
         let _ = tx.send(UiCommand::LoadModels);
     });
@@ -174,6 +278,16 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
     let tx = command_tx.clone();
     window.on_test_api_connection(move || {
         let _ = tx.send(UiCommand::TestApiConnection);
+    });
+
+    let tx = command_tx.clone();
+    window.on_add_api_profile(move || {
+        let _ = tx.send(UiCommand::AddApiProfile);
+    });
+
+    let tx = command_tx.clone();
+    window.on_delete_api_profile(move || {
+        let _ = tx.send(UiCommand::DeleteApiProfile);
     });
 
     let tx = command_tx.clone();

@@ -131,6 +131,99 @@ component SmallButton inherits Rectangle {
     }
 }
 
+component TinyButton inherits Rectangle {
+    in property <string> label: "";
+    callback clicked();
+
+    width: 34px;
+    height: 34px;
+    background: touch.pressed ? #d5e5df : touch.has-hover ? #edf5f2 : #ffffff;
+    border-color: #c8d4ce;
+    border-width: 1px;
+    border-radius: 6px;
+
+    Text {
+        text: root.label;
+        color: #1f2a28;
+        font-size: 16px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+component ToggleRow inherits HorizontalLayout {
+    in property <string> label: "";
+    in-out property <bool> checked: false;
+
+    height: 34px;
+    spacing: 12px;
+
+    Text {
+        text: root.label;
+        color: #66746e;
+        font-size: 13px;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        width: 48px;
+        height: 26px;
+        background: root.checked ? #51b3a2 : #d7e1dc;
+        border-radius: 6px;
+
+        Rectangle {
+            x: root.checked ? 24px : 4px;
+            y: 4px;
+            width: 18px;
+            height: 18px;
+            background: #ffffff;
+            border-radius: 5px;
+        }
+
+        TouchArea {
+            width: parent.width;
+            height: parent.height;
+            clicked => { root.checked = !root.checked; }
+        }
+    }
+}
+
+component OptionButton inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> selected: false;
+    callback clicked();
+
+    height: 34px;
+    horizontal-stretch: 1;
+    background: selected ? #dceee9 : #ffffff;
+    border-color: selected ? #90cbbd : #c8d4ce;
+    border-width: 1px;
+    border-radius: 6px;
+
+    Text {
+        text: root.label;
+        color: selected ? #163f36 : #50615c;
+        font-size: 13px;
+        font-weight: selected ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
 component PageTitle inherits Text {
     in property <string> label: "";
 
@@ -231,9 +324,27 @@ export component SettingsWindow inherits Window {
     in-out property <string> profile-line: "";
     in-out property <string> api-base-url: "";
     in-out property <string> model-name: "";
+    in-out property <string> profile-name: "";
+    in-out property <string> api-key: "";
+    in-out property <string> language: "";
+    in-out property <string> temperature: "";
+    in-out property <string> request-timeout-seconds: "";
     in-out property <string> transcription-hotkey: "";
     in-out property <string> translation-hotkey: "";
-    in-out property <string> recording-mode-line: "";
+    in-out property <string> recording-mode: "";
+    in-out property <string> silence-threshold-percent: "";
+    in-out property <string> silence-timeout-milliseconds: "";
+    in-out property <string> max-recording-seconds: "";
+    in-out property <string> input-device-index: "";
+    in-out property <bool> start-with-windows: false;
+    in-out property <string> ui-language: "";
+    in-out property <bool> launch-minimized-to-tray: true;
+    in-out property <bool> show-floating-recording-window: true;
+    in-out property <bool> enable-sounds: true;
+    in-out property <bool> restore-clipboard-content: true;
+    in-out property <string> delay-before-paste-milliseconds: "";
+    in-out property <string> delay-before-clipboard-restore-milliseconds: "";
+    in-out property <string> last-error-line: "";
     in-out property <int> selected-page: 0;
 
     callback save();
@@ -382,7 +493,7 @@ export component SettingsWindow inherits Window {
 
                             Section {
                                 SectionTitle { label: "Profile"; }
-                                KeyValue { name: "Active profile"; value: root.profile-line; }
+                                KeyValue { name: "Active profile"; value: root.profile-name; }
                                 KeyValue { name: "Endpoint"; value: root.api-base-url; }
                                 KeyValue { name: "Model"; value: root.model-name; }
                             }
@@ -390,22 +501,59 @@ export component SettingsWindow inherits Window {
                             Divider {}
 
                             Section {
-                                SectionTitle { label: "Recording"; }
-                                KeyValue { name: "Mode"; value: root.recording-mode-line; }
-                                KeyValue { name: "Audio format"; value: "16 kHz mono WAV"; }
+                                SectionTitle { label: "Application"; }
+                                ToggleRow { label: "Start with Windows"; checked <=> root.start-with-windows; }
+
+                                Label { label: "Language"; }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    OptionButton { label: "Русский"; selected: root.ui-language == "Russian"; clicked => { root.ui-language = "Russian"; } }
+                                    OptionButton { label: "English"; selected: root.ui-language == "English"; clicked => { root.ui-language = "English"; } }
+                                }
+
+                                ToggleRow { label: "Launch minimized to tray"; checked <=> root.launch-minimized-to-tray; }
+                                ToggleRow { label: "Show floating recording window"; checked <=> root.show-floating-recording-window; }
                             }
                         }
 
                         if root.selected-page == 1: VerticalLayout {
                             spacing: 14px;
 
-                            SectionTitle { label: "Global hotkeys"; }
-
                             Label { label: "Transcription hotkey"; }
                             Field { value <=> root.transcription-hotkey; }
 
                             Label { label: "Translation hotkey"; }
                             Field { value <=> root.translation-hotkey; }
+
+                            Label { label: "Recording mode"; }
+                            HorizontalLayout {
+                                spacing: 10px;
+                                OptionButton { label: "Toggle"; selected: root.recording-mode == "Toggle"; clicked => { root.recording-mode = "Toggle"; } }
+                                OptionButton { label: "Hold"; selected: root.recording-mode == "Hold"; clicked => { root.recording-mode = "Hold"; } }
+                                OptionButton { label: "Silence"; selected: root.recording-mode == "SilenceTimeout"; clicked => { root.recording-mode = "SilenceTimeout"; } }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Silence threshold, %"; }
+                                    Field { value <=> root.silence-threshold-percent; }
+                                }
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Silence timeout, ms"; }
+                                    Field { value <=> root.silence-timeout-milliseconds; }
+                                }
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Max duration, sec"; }
+                                    Field { value <=> root.max-recording-seconds; }
+                                }
+                            }
                         }
 
                         if root.selected-page == 2: VerticalLayout {
@@ -413,9 +561,14 @@ export component SettingsWindow inherits Window {
 
                             Section {
                                 SectionTitle { label: "Input"; }
-                                KeyValue { name: "Device"; value: "System default"; }
+                                KeyValue { name: "Microphone"; value: "System default input device"; }
                                 KeyValue { name: "Capture"; value: "Microphone to WAV"; }
+                                KeyValue { name: "Status"; value: "Ready"; }
+                                KeyValue { name: "Level"; value: "Idle"; }
                             }
+
+                            Label { label: "Microphone device index"; }
+                            Field { value <=> root.input-device-index; }
 
                             HorizontalLayout {
                                 spacing: 10px;
@@ -427,13 +580,43 @@ export component SettingsWindow inherits Window {
                         if root.selected-page == 3: VerticalLayout {
                             spacing: 14px;
 
-                            SectionTitle { label: "API profile"; }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Field { value <=> root.profile-name; horizontal-stretch: 1; }
+                                TinyButton { label: "+"; clicked => { root.add-api-profile(); } }
+                                TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
+                            }
 
                             Label { label: "Base URL"; }
                             Field { value <=> root.api-base-url; }
 
+                            Label { label: "API key"; }
+                            Field { value <=> root.api-key; }
+
                             Label { label: "Model"; }
                             Field { value <=> root.model-name; }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Language"; }
+                                    Field { value <=> root.language; }
+                                }
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Temperature"; }
+                                    Field { value <=> root.temperature; }
+                                }
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Timeout, sec"; }
+                                    Field { value <=> root.request-timeout-seconds; }
+                                }
+                            }
 
                             HorizontalLayout {
                                 spacing: 10px;
@@ -448,7 +631,23 @@ export component SettingsWindow inherits Window {
                             Section {
                                 SectionTitle { label: "Clipboard"; }
                                 KeyValue { name: "Insertion"; value: "Paste through clipboard"; }
-                                KeyValue { name: "Restore"; value: "Enabled"; }
+                                ToggleRow { label: "Restore previous clipboard content"; checked <=> root.restore-clipboard-content; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Delay before paste, ms"; }
+                                    Field { value <=> root.delay-before-paste-milliseconds; }
+                                }
+                                VerticalLayout {
+                                    spacing: 6px;
+                                    horizontal-stretch: 1;
+                                    Label { label: "Delay before restore, ms"; }
+                                    Field { value <=> root.delay-before-clipboard-restore-milliseconds; }
+                                }
                             }
                         }
 
@@ -457,8 +656,17 @@ export component SettingsWindow inherits Window {
 
                             Section {
                                 SectionTitle { label: "Events"; }
-                                KeyValue { name: "Record start"; value: "Enabled"; }
-                                KeyValue { name: "Record stop"; value: "Enabled"; }
+                                ToggleRow { label: "Enable sounds"; checked <=> root.enable-sounds; }
+                                KeyValue { name: "Record start"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
+                                KeyValue { name: "Record stop"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
+                                KeyValue { name: "Error"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                SmallButton { label: "Start"; }
+                                SmallButton { label: "Stop"; }
+                                SmallButton { label: "Error"; }
                             }
                         }
 
@@ -468,6 +676,7 @@ export component SettingsWindow inherits Window {
                             Section {
                                 SectionTitle { label: "Diagnostics"; }
                                 KeyValue { name: "Last status"; value: root.status-text == "" ? "Ready" : root.status-text; }
+                                KeyValue { name: "Last error"; value: root.last-error-line == "" ? "No error in this session" : root.last-error-line; }
                             }
 
                             HorizontalLayout {

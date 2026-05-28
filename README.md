@@ -81,7 +81,7 @@ Normal transcription is not translated by VoiceInsert. If the transcription endp
 - API keys are protected with Windows DPAPI per profile.
 - Audio and recognized text are not saved to disk.
 - Logs do not contain audio, recognized text, or API keys.
-- Settings use top navigation, field-level tooltips, compact profile controls, one model field, and a global status bar.
+- Settings use sidebar navigation, compact profile controls, one model field, and a global status bar.
 - Microphone selection displays full Windows CoreAudio device names, and the full selected name is available in a tooltip.
 - The `Logs` section shows the last error time and message for the current app session.
 
