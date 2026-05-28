@@ -128,7 +128,7 @@ impl AppRuntime {
             tracing::error!(%message, "runtime tick failed");
             self.state.mark_error();
             self.tray.set_state(TrayState::Error);
-            let _ = self.ui.set_overlay_status("Error");
+            self.ui.hide_overlay();
             let _ = self.sounds.play(SoundKind::Error);
         }
     }
@@ -158,9 +158,12 @@ impl AppRuntime {
             TrayCommand::Settings => {
                 tracing::info!("settings command received");
                 let profile = self.settings.active_profile();
+                let logs_folder = self.paths.logs_dir().display().to_string();
                 self.ui.open_settings(
                     &self.settings,
                     api_key_for_profile(&self.api_keys, &profile.id),
+                    &logs_folder,
+                    self.last_error.get().as_deref(),
                 )?;
                 Ok(false)
             }
@@ -229,30 +232,6 @@ impl AppRuntime {
                 crate::settings::save_settings(&self.paths, &self.settings)?;
                 self.ui.set_status("Settings saved.");
             }
-            UiCommand::RefreshDevices => {
-                match crate::audio::recorder::Recorder::list_input_devices() {
-                    Ok(devices) if devices.is_empty() => {
-                        self.ui.set_status("No input devices found.");
-                    }
-                    Ok(devices) => {
-                        let summary = devices
-                            .iter()
-                            .map(|device| device.label.as_str())
-                            .collect::<Vec<_>>()
-                            .join("; ");
-                        self.ui.set_status(format!("Input devices: {summary}"));
-                    }
-                    Err(error) => {
-                        self.ui
-                            .set_status(format!("Failed to list input devices: {error}"));
-                    }
-                }
-            }
-            UiCommand::TestMicrophone => {
-                self.ui.set_status(
-                    "Use Refresh to list devices, then record briefly to test the selected index.",
-                );
-            }
             UiCommand::LoadModels => {
                 let profile = self.settings.active_profile();
                 self.ui.set_status("Loading models...");
@@ -282,9 +261,12 @@ impl AppRuntime {
                 self.settings = self.settings.clone().normalized();
                 crate::settings::save_settings(&self.paths, &self.settings)?;
                 let profile = self.settings.active_profile();
+                let logs_folder = self.paths.logs_dir().display().to_string();
                 self.ui.open_settings(
                     &self.settings,
                     api_key_for_profile(&self.api_keys, &profile.id),
+                    &logs_folder,
+                    self.last_error.get().as_deref(),
                 )?;
                 self.ui.set_status("API profile added.");
             }
@@ -305,9 +287,12 @@ impl AppRuntime {
                     crate::settings::save_settings(&self.paths, &self.settings)?;
                     crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
                     let profile = self.settings.active_profile();
+                    let logs_folder = self.paths.logs_dir().display().to_string();
                     self.ui.open_settings(
                         &self.settings,
                         api_key_for_profile(&self.api_keys, &profile.id),
+                        &logs_folder,
+                        self.last_error.get().as_deref(),
                     )?;
                     self.ui.set_status("API profile deleted.");
                 } else {
@@ -343,7 +328,7 @@ impl AppRuntime {
             tracing::error!(%message, "failed to handle hotkey action");
             self.state.mark_error();
             self.tray.set_state(TrayState::Error);
-            let _ = self.ui.set_overlay_status("Error");
+            self.ui.hide_overlay();
             let _ = self.sounds.play(SoundKind::Error);
         }
     }
@@ -378,7 +363,7 @@ impl AppRuntime {
             .try_into()
             .unwrap_or(usize::MAX);
         let mut recorder = Recorder::new(RecorderConfig {
-            device_index: self.settings.input_device_index,
+            device_index: None,
             max_buffer_samples,
             ..RecorderConfig::default()
         });
@@ -447,7 +432,7 @@ impl AppRuntime {
                     tracing::error!(%message, "voice insertion task failed");
                     self.state.mark_error();
                     self.tray.set_state(TrayState::Error);
-                    let _ = self.ui.set_overlay_status("Error");
+                    self.ui.hide_overlay();
                     let _ = self.sounds.play(SoundKind::Error);
                 }
                 Err(TryRecvError::Empty) => break,
@@ -478,7 +463,7 @@ impl AppRuntime {
                 tracing::error!(%message, "failed to process audio level");
                 self.state.mark_error();
                 self.tray.set_state(TrayState::Error);
-                let _ = self.ui.set_overlay_status("Error");
+                self.ui.hide_overlay();
                 let _ = self.sounds.play(SoundKind::Error);
                 break;
             }
@@ -629,11 +614,11 @@ fn apply_settings_edit(mut settings: AppSettings, edit: SettingsEdit) -> AppSett
     );
     settings.max_recording_seconds =
         parse_or_keep(&edit.max_recording_seconds, settings.max_recording_seconds);
-    settings.input_device_index = parse_optional_usize(&edit.input_device_index);
+    settings.input_device_index = None;
     settings.start_with_windows = edit.start_with_windows;
     settings.ui_language = parse_language(&edit.ui_language);
-    settings.launch_minimized_to_tray = edit.launch_minimized_to_tray;
-    settings.show_floating_recording_window = edit.show_floating_recording_window;
+    settings.launch_minimized_to_tray = true;
+    settings.show_floating_recording_window = true;
     settings.enable_sounds = edit.enable_sounds;
     settings.restore_clipboard_content = edit.restore_clipboard_content;
     settings.delay_before_paste_milliseconds = parse_or_keep(
@@ -644,6 +629,7 @@ fn apply_settings_edit(mut settings: AppSettings, edit: SettingsEdit) -> AppSett
         &edit.delay_before_clipboard_restore_milliseconds,
         settings.delay_before_clipboard_restore_milliseconds,
     );
+    settings.log_level = parse_log_level(&edit.log_level).to_string();
 
     let active_profile_id = settings.active_api_profile_id.clone();
     if let Some(profile) = settings
@@ -680,19 +666,19 @@ fn parse_recording_mode(value: &str) -> RecordingMode {
     }
 }
 
-fn parse_optional_usize(value: &str) -> Option<usize> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        trimmed.parse().ok()
-    }
-}
-
 fn parse_language(value: &str) -> AppLanguage {
     match value.trim() {
         "English" => AppLanguage::English,
         _ => AppLanguage::Russian,
+    }
+}
+
+fn parse_log_level(value: &str) -> &'static str {
+    match value.trim() {
+        "Debug" => "Debug",
+        "Warning" => "Warning",
+        "Error" => "Error",
+        _ => "Information",
     }
 }
 
@@ -1112,15 +1098,13 @@ mod tests {
                 silence_threshold_percent: "8".to_string(),
                 silence_timeout_milliseconds: "900".to_string(),
                 max_recording_seconds: "30".to_string(),
-                input_device_index: "2".to_string(),
                 start_with_windows: true,
                 ui_language: "English".to_string(),
-                launch_minimized_to_tray: false,
-                show_floating_recording_window: true,
                 enable_sounds: false,
                 restore_clipboard_content: false,
                 delay_before_paste_milliseconds: "120".to_string(),
                 delay_before_clipboard_restore_milliseconds: "500".to_string(),
+                log_level: "Debug".to_string(),
             },
         )
         .normalized();
@@ -1136,12 +1120,14 @@ mod tests {
         assert_eq!(settings.silence_threshold_percent, 8);
         assert_eq!(settings.silence_timeout_milliseconds, 900);
         assert_eq!(settings.max_recording_seconds, 30);
-        assert_eq!(settings.input_device_index, Some(2));
+        assert_eq!(settings.input_device_index, None);
         assert!(settings.start_with_windows);
-        assert!(!settings.launch_minimized_to_tray);
+        assert!(settings.launch_minimized_to_tray);
+        assert!(settings.show_floating_recording_window);
         assert!(!settings.enable_sounds);
         assert!(!settings.restore_clipboard_content);
         assert_eq!(settings.delay_before_paste_milliseconds, 120);
         assert_eq!(settings.delay_before_clipboard_restore_milliseconds, 500);
+        assert_eq!(settings.log_level, "Debug");
     }
 }

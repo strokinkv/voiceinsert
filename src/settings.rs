@@ -226,9 +226,19 @@ impl AppSettings {
         self.silence_threshold_percent = self.silence_threshold_percent.min(100);
         self.silence_timeout_milliseconds = self.silence_timeout_milliseconds.clamp(100, 30_000);
         self.max_recording_seconds = self.max_recording_seconds.clamp(1, 3600);
+        self.input_device_index = None;
+        self.launch_minimized_to_tray = true;
+        self.show_floating_recording_window = true;
         self.delay_before_paste_milliseconds = self.delay_before_paste_milliseconds.min(5000);
         self.delay_before_clipboard_restore_milliseconds =
             self.delay_before_clipboard_restore_milliseconds.min(30_000);
+        self.log_level = match self.log_level.as_str() {
+            "Debug" => "Debug",
+            "Warning" => "Warning",
+            "Error" => "Error",
+            _ => "Information",
+        }
+        .to_string();
 
         self.ensure_profiles();
         self

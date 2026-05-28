@@ -1,7 +1,23 @@
+component Label inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #66746e;
+    font-size: 13px;
+}
+
+component ValueText inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #24312e;
+    font-size: 14px;
+}
+
 component Field inherits Rectangle {
     in-out property <string> value: "";
 
-    height: 36px;
+    height: 34px;
     background: #ffffff;
     border-color: #c8d4ce;
     border-width: 1px;
@@ -20,37 +36,77 @@ component Field inherits Rectangle {
     }
 }
 
+component FieldRow inherits HorizontalLayout {
+    in property <string> label: "";
+    in-out property <string> value: "";
+    in property <length> field-width: 360px;
+
+    height: 34px;
+    spacing: 14px;
+
+    Label {
+        label: root.label;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+    }
+
+    Field {
+        value <=> root.value;
+        width: root.field-width;
+    }
+}
+
+component ReadOnlyRow inherits HorizontalLayout {
+    in property <string> name: "";
+    in property <string> value: "";
+
+    height: 28px;
+    spacing: 14px;
+
+    Label {
+        label: root.name;
+        width: 150px;
+        vertical-alignment: center;
+    }
+
+    ValueText {
+        label: root.value;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+    }
+}
+
 component NavItem inherits Rectangle {
     in property <string> label: "";
     in property <string> mark: "";
     in property <bool> selected: false;
     callback clicked();
 
-    height: 42px;
+    height: 36px;
     background: selected ? #dceee9 : transparent;
     border-radius: 6px;
 
     Rectangle {
         x: 0;
-        y: 7px;
+        y: 6px;
         width: 3px;
-        height: 28px;
+        height: 24px;
         background: root.selected ? #51b3a2 : transparent;
         border-radius: 2px;
     }
 
     Rectangle {
         x: 14px;
-        y: 9px;
-        width: 24px;
-        height: 24px;
+        y: 7px;
+        width: 22px;
+        height: 22px;
         background: root.selected ? #51b3a2 : #d6e1dc;
         border-radius: 5px;
 
         Text {
             text: root.mark;
             color: root.selected ? #ffffff : #50615c;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -60,7 +116,7 @@ component NavItem inherits Rectangle {
     Text {
         text: root.label;
         color: selected ? #1f2a28 : #61716b;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: selected ? 700 : 400;
         x: 48px;
         y: 0;
@@ -162,7 +218,7 @@ component ToggleRow inherits HorizontalLayout {
     in property <string> label: "";
     in-out property <bool> checked: false;
 
-    height: 34px;
+    height: 30px;
     spacing: 12px;
 
     Text {
@@ -201,7 +257,7 @@ component OptionButton inherits Rectangle {
     in property <bool> selected: false;
     callback clicked();
 
-    height: 34px;
+    height: 32px;
     horizontal-stretch: 1;
     background: selected ? #dceee9 : #ffffff;
     border-color: selected ? #90cbbd : #c8d4ce;
@@ -229,7 +285,7 @@ component PageTitle inherits Text {
 
     text: label;
     color: #1f2a28;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
 }
 
@@ -240,47 +296,6 @@ component SectionTitle inherits Text {
     color: #1f2a28;
     font-size: 15px;
     font-weight: 700;
-}
-
-component Label inherits Text {
-    in property <string> label: "";
-
-    text: label;
-    color: #66746e;
-    font-size: 13px;
-}
-
-component ValueText inherits Text {
-    in property <string> label: "";
-
-    text: label;
-    color: #24312e;
-    font-size: 14px;
-}
-
-component KeyValue inherits HorizontalLayout {
-    in property <string> name: "";
-    in property <string> value: "";
-
-    height: 28px;
-    spacing: 12px;
-
-    Label {
-        label: root.name;
-        width: 150px;
-        vertical-alignment: center;
-    }
-
-    ValueText {
-        label: root.value;
-        vertical-alignment: center;
-        horizontal-stretch: 1;
-    }
-}
-
-component Divider inherits Rectangle {
-    height: 1px;
-    background: #dfe8e4;
 }
 
 component StatusPill inherits Rectangle {
@@ -316,7 +331,7 @@ component StatusPill inherits Rectangle {
 }
 
 component Section inherits VerticalLayout {
-    spacing: 10px;
+    spacing: 8px;
 }
 
 export component SettingsWindow inherits Window {
@@ -335,22 +350,19 @@ export component SettingsWindow inherits Window {
     in-out property <string> silence-threshold-percent: "";
     in-out property <string> silence-timeout-milliseconds: "";
     in-out property <string> max-recording-seconds: "";
-    in-out property <string> input-device-index: "";
     in-out property <bool> start-with-windows: false;
     in-out property <string> ui-language: "";
-    in-out property <bool> launch-minimized-to-tray: true;
-    in-out property <bool> show-floating-recording-window: true;
     in-out property <bool> enable-sounds: true;
     in-out property <bool> restore-clipboard-content: true;
     in-out property <string> delay-before-paste-milliseconds: "";
     in-out property <string> delay-before-clipboard-restore-milliseconds: "";
+    in-out property <string> logs-folder: "";
+    in-out property <string> log-level: "";
     in-out property <string> last-error-line: "";
     in-out property <int> selected-page: 0;
 
     callback save();
     callback close();
-    callback refresh-devices();
-    callback test-microphone();
     callback load-models();
     callback test-api-connection();
     callback add-api-profile();
@@ -362,7 +374,7 @@ export component SettingsWindow inherits Window {
 
     title: "VoiceInsert";
     width: 1080px;
-    height: 720px;
+    height: 650px;
     background: #f6f8f7;
 
     HorizontalLayout {
@@ -377,9 +389,9 @@ export component SettingsWindow inherits Window {
             VerticalLayout {
                 padding-left: 22px;
                 padding-right: 18px;
-                padding-top: 24px;
+                padding-top: 22px;
                 padding-bottom: 18px;
-                spacing: 12px;
+                spacing: 10px;
 
                 Text {
                     text: "VoiceInsert";
@@ -396,15 +408,14 @@ export component SettingsWindow inherits Window {
                     vertical-alignment: center;
                 }
 
-                Rectangle { height: 10px; background: transparent; }
+                Rectangle { height: 6px; background: transparent; }
 
                 NavItem { mark: "G"; label: "General"; selected: root.selected-page == 0; clicked => { root.selected-page = 0; } }
                 NavItem { mark: "H"; label: "Hotkeys"; selected: root.selected-page == 1; clicked => { root.selected-page = 1; } }
-                NavItem { mark: "A"; label: "Audio"; selected: root.selected-page == 2; clicked => { root.selected-page = 2; } }
-                NavItem { mark: "API"; label: "API"; selected: root.selected-page == 3; clicked => { root.selected-page = 3; } }
-                NavItem { mark: "I"; label: "Insertion"; selected: root.selected-page == 4; clicked => { root.selected-page = 4; } }
-                NavItem { mark: "S"; label: "Sounds"; selected: root.selected-page == 5; clicked => { root.selected-page = 5; } }
-                NavItem { mark: "L"; label: "Logs"; selected: root.selected-page == 6; clicked => { root.selected-page = 6; } }
+                NavItem { mark: "API"; label: "API Profile"; selected: root.selected-page == 2; clicked => { root.selected-page = 2; } }
+                NavItem { mark: "I"; label: "Insertion"; selected: root.selected-page == 3; clicked => { root.selected-page = 3; } }
+                NavItem { mark: "S"; label: "Sounds"; selected: root.selected-page == 4; clicked => { root.selected-page = 4; } }
+                NavItem { mark: "L"; label: "Logs"; selected: root.selected-page == 5; clicked => { root.selected-page = 5; } }
 
                 Rectangle { vertical-stretch: 1; background: transparent; }
 
@@ -434,23 +445,22 @@ export component SettingsWindow inherits Window {
             horizontal-stretch: 1;
 
             VerticalLayout {
-                padding-left: 32px;
-                padding-right: 32px;
-                padding-top: 28px;
+                padding-left: 26px;
+                padding-right: 26px;
+                padding-top: 22px;
                 padding-bottom: 22px;
-                spacing: 18px;
+                spacing: 12px;
 
                 HorizontalLayout {
-                    height: 44px;
+                    height: 40px;
                     spacing: 14px;
 
                     PageTitle {
                         label: root.selected-page == 0 ? "General" :
                             root.selected-page == 1 ? "Hotkeys" :
-                            root.selected-page == 2 ? "Audio" :
-                            root.selected-page == 3 ? "API" :
-                            root.selected-page == 4 ? "Insertion" :
-                            root.selected-page == 5 ? "Sounds" : "Logs";
+                            root.selected-page == 2 ? "API Profile" :
+                            root.selected-page == 3 ? "Insertion" :
+                            root.selected-page == 4 ? "Sounds" : "Logs";
                         vertical-alignment: center;
                         horizontal-stretch: 1;
                     }
@@ -459,50 +469,23 @@ export component SettingsWindow inherits Window {
                 }
 
                 Rectangle {
-                    height: 74px;
                     background: #ffffff;
                     border-color: #dce6e1;
                     border-width: 1px;
                     border-radius: 6px;
-
-                    HorizontalLayout {
-                        padding-left: 18px;
-                        padding-right: 18px;
-                        padding-top: 12px;
-                        padding-bottom: 12px;
-                        spacing: 22px;
-
-                        KeyValue { name: "Profile"; value: root.profile-line; }
-                        KeyValue { name: "API"; value: root.api-base-url; }
-                    }
-                }
-
-                Rectangle {
-                    background: #ffffff;
-                    border-color: #dce6e1;
-                    border-width: 1px;
-                    border-radius: 6px;
-                    vertical-stretch: 1;
 
                     VerticalLayout {
-                        padding: 24px;
-                        spacing: 18px;
+                        padding: 18px;
+                        spacing: 12px;
 
                         if root.selected-page == 0: VerticalLayout {
-                            spacing: 18px;
-
-                            Section {
-                                SectionTitle { label: "Profile"; }
-                                KeyValue { name: "Active profile"; value: root.profile-name; }
-                                KeyValue { name: "Endpoint"; value: root.api-base-url; }
-                                KeyValue { name: "Model"; value: root.model-name; }
-                            }
-
-                            Divider {}
+                            spacing: 12px;
 
                             Section {
                                 SectionTitle { label: "Application"; }
                                 ToggleRow { label: "Start with Windows"; checked <=> root.start-with-windows; }
+                                ReadOnlyRow { name: "Startup"; value: "Tray only"; }
+                                ReadOnlyRow { name: "Recording window"; value: "Always shown"; }
 
                                 Label { label: "Language"; }
                                 HorizontalLayout {
@@ -510,20 +493,14 @@ export component SettingsWindow inherits Window {
                                     OptionButton { label: "Русский"; selected: root.ui-language == "Russian"; clicked => { root.ui-language = "Russian"; } }
                                     OptionButton { label: "English"; selected: root.ui-language == "English"; clicked => { root.ui-language = "English"; } }
                                 }
-
-                                ToggleRow { label: "Launch minimized to tray"; checked <=> root.launch-minimized-to-tray; }
-                                ToggleRow { label: "Show floating recording window"; checked <=> root.show-floating-recording-window; }
                             }
                         }
 
                         if root.selected-page == 1: VerticalLayout {
-                            spacing: 14px;
+                            spacing: 10px;
 
-                            Label { label: "Transcription hotkey"; }
-                            Field { value <=> root.transcription-hotkey; }
-
-                            Label { label: "Translation hotkey"; }
-                            Field { value <=> root.translation-hotkey; }
+                            FieldRow { label: "Transcription hotkey"; value <=> root.transcription-hotkey; }
+                            FieldRow { label: "Translation hotkey"; value <=> root.translation-hotkey; }
 
                             Label { label: "Recording mode"; }
                             HorizontalLayout {
@@ -533,90 +510,29 @@ export component SettingsWindow inherits Window {
                                 OptionButton { label: "Silence"; selected: root.recording-mode == "SilenceTimeout"; clicked => { root.recording-mode = "SilenceTimeout"; } }
                             }
 
-                            HorizontalLayout {
-                                spacing: 12px;
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Silence threshold, %"; }
-                                    Field { value <=> root.silence-threshold-percent; }
-                                }
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Silence timeout, ms"; }
-                                    Field { value <=> root.silence-timeout-milliseconds; }
-                                }
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Max duration, sec"; }
-                                    Field { value <=> root.max-recording-seconds; }
-                                }
-                            }
+                            FieldRow { label: "Silence threshold, %"; value <=> root.silence-threshold-percent; field-width: 160px; }
+                            FieldRow { label: "Silence timeout, ms"; value <=> root.silence-timeout-milliseconds; field-width: 160px; }
+                            FieldRow { label: "Max duration, sec"; value <=> root.max-recording-seconds; field-width: 160px; }
                         }
 
                         if root.selected-page == 2: VerticalLayout {
-                            spacing: 18px;
-
-                            Section {
-                                SectionTitle { label: "Input"; }
-                                KeyValue { name: "Microphone"; value: "System default input device"; }
-                                KeyValue { name: "Capture"; value: "Microphone to WAV"; }
-                                KeyValue { name: "Status"; value: "Ready"; }
-                                KeyValue { name: "Level"; value: "Idle"; }
-                            }
-
-                            Label { label: "Microphone device index"; }
-                            Field { value <=> root.input-device-index; }
+                            spacing: 10px;
 
                             HorizontalLayout {
-                                spacing: 10px;
-                                SmallButton { label: "Refresh"; clicked => { root.refresh-devices(); } }
-                                SmallButton { label: "Test mic"; clicked => { root.test-microphone(); } }
-                            }
-                        }
-
-                        if root.selected-page == 3: VerticalLayout {
-                            spacing: 14px;
-
-                            HorizontalLayout {
+                                height: 34px;
                                 spacing: 8px;
-                                Field { value <=> root.profile-name; horizontal-stretch: 1; }
+                                Label { label: "Profile name"; horizontal-stretch: 1; vertical-alignment: center; }
+                                Field { value <=> root.profile-name; width: 360px; }
                                 TinyButton { label: "+"; clicked => { root.add-api-profile(); } }
                                 TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
                             }
 
-                            Label { label: "Base URL"; }
-                            Field { value <=> root.api-base-url; }
-
-                            Label { label: "API key"; }
-                            Field { value <=> root.api-key; }
-
-                            Label { label: "Model"; }
-                            Field { value <=> root.model-name; }
-
-                            HorizontalLayout {
-                                spacing: 12px;
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Language"; }
-                                    Field { value <=> root.language; }
-                                }
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Temperature"; }
-                                    Field { value <=> root.temperature; }
-                                }
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Timeout, sec"; }
-                                    Field { value <=> root.request-timeout-seconds; }
-                                }
-                            }
+                            FieldRow { label: "Base URL"; value <=> root.api-base-url; }
+                            FieldRow { label: "API key"; value <=> root.api-key; }
+                            FieldRow { label: "Model"; value <=> root.model-name; }
+                            FieldRow { label: "Language"; value <=> root.language; field-width: 160px; }
+                            FieldRow { label: "Temperature"; value <=> root.temperature; field-width: 160px; }
+                            FieldRow { label: "Timeout, sec"; value <=> root.request-timeout-seconds; field-width: 160px; }
 
                             HorizontalLayout {
                                 spacing: 10px;
@@ -625,41 +541,28 @@ export component SettingsWindow inherits Window {
                             }
                         }
 
-                        if root.selected-page == 4: VerticalLayout {
-                            spacing: 18px;
+                        if root.selected-page == 3: VerticalLayout {
+                            spacing: 12px;
 
                             Section {
                                 SectionTitle { label: "Clipboard"; }
-                                KeyValue { name: "Insertion"; value: "Paste through clipboard"; }
+                                ReadOnlyRow { name: "Insertion"; value: "Paste through clipboard"; }
                                 ToggleRow { label: "Restore previous clipboard content"; checked <=> root.restore-clipboard-content; }
                             }
 
-                            HorizontalLayout {
-                                spacing: 12px;
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Delay before paste, ms"; }
-                                    Field { value <=> root.delay-before-paste-milliseconds; }
-                                }
-                                VerticalLayout {
-                                    spacing: 6px;
-                                    horizontal-stretch: 1;
-                                    Label { label: "Delay before restore, ms"; }
-                                    Field { value <=> root.delay-before-clipboard-restore-milliseconds; }
-                                }
-                            }
+                            FieldRow { label: "Delay before paste, ms"; value <=> root.delay-before-paste-milliseconds; field-width: 160px; }
+                            FieldRow { label: "Delay before restore, ms"; value <=> root.delay-before-clipboard-restore-milliseconds; field-width: 160px; }
                         }
 
-                        if root.selected-page == 5: VerticalLayout {
-                            spacing: 18px;
+                        if root.selected-page == 4: VerticalLayout {
+                            spacing: 12px;
 
                             Section {
                                 SectionTitle { label: "Events"; }
                                 ToggleRow { label: "Enable sounds"; checked <=> root.enable-sounds; }
-                                KeyValue { name: "Record start"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
-                                KeyValue { name: "Record stop"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
-                                KeyValue { name: "Error"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
+                                ReadOnlyRow { name: "Record start"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
+                                ReadOnlyRow { name: "Record stop"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
+                                ReadOnlyRow { name: "Error"; value: root.enable-sounds ? "Enabled" : "Disabled"; }
                             }
 
                             HorizontalLayout {
@@ -670,13 +573,25 @@ export component SettingsWindow inherits Window {
                             }
                         }
 
-                        if root.selected-page == 6: VerticalLayout {
-                            spacing: 18px;
+                        if root.selected-page == 5: VerticalLayout {
+                            spacing: 12px;
 
                             Section {
                                 SectionTitle { label: "Diagnostics"; }
-                                KeyValue { name: "Last status"; value: root.status-text == "" ? "Ready" : root.status-text; }
-                                KeyValue { name: "Last error"; value: root.last-error-line == "" ? "No error in this session" : root.last-error-line; }
+                                ReadOnlyRow { name: "Logs folder"; value: root.logs-folder; }
+                                ReadOnlyRow { name: "Last status"; value: root.status-text == "" ? "Ready" : root.status-text; }
+                                ReadOnlyRow { name: "Last error"; value: root.last-error-line == "" ? "No error in this session" : root.last-error-line; }
+                            }
+
+                            Section {
+                                SectionTitle { label: "Log level"; }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    OptionButton { label: "Information"; selected: root.log-level == "Information"; clicked => { root.log-level = "Information"; } }
+                                    OptionButton { label: "Debug"; selected: root.log-level == "Debug"; clicked => { root.log-level = "Debug"; } }
+                                    OptionButton { label: "Warning"; selected: root.log-level == "Warning"; clicked => { root.log-level = "Warning"; } }
+                                    OptionButton { label: "Error"; selected: root.log-level == "Error"; clicked => { root.log-level = "Error"; } }
+                                }
                             }
 
                             HorizontalLayout {
@@ -687,6 +602,8 @@ export component SettingsWindow inherits Window {
                         }
                     }
                 }
+
+                Rectangle { vertical-stretch: 1; background: transparent; }
 
                 HorizontalLayout {
                     height: 42px;

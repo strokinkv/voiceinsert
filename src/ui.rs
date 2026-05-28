@@ -1,14 +1,12 @@
 slint::include_modules!();
 
 use crate::settings::{AI2NPU_DEFAULT_MODEL, AppLanguage, AppSettings, RecordingMode};
-use slint::{ComponentHandle, SharedString};
+use slint::{ComponentHandle, PhysicalPosition, SharedString};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiCommand {
     Save,
-    RefreshDevices,
-    TestMicrophone,
     LoadModels,
     TestApiConnection,
     AddApiProfile,
@@ -32,15 +30,13 @@ pub struct SettingsEdit {
     pub silence_threshold_percent: String,
     pub silence_timeout_milliseconds: String,
     pub max_recording_seconds: String,
-    pub input_device_index: String,
     pub start_with_windows: bool,
     pub ui_language: String,
-    pub launch_minimized_to_tray: bool,
-    pub show_floating_recording_window: bool,
     pub enable_sounds: bool,
     pub restore_clipboard_content: bool,
     pub delay_before_paste_milliseconds: String,
     pub delay_before_clipboard_restore_milliseconds: String,
+    pub log_level: String,
 }
 
 pub struct UiController {
@@ -61,7 +57,13 @@ impl UiController {
         }
     }
 
-    pub fn open_settings(&mut self, settings: &AppSettings, api_key: &str) -> anyhow::Result<()> {
+    pub fn open_settings(
+        &mut self,
+        settings: &AppSettings,
+        api_key: &str,
+        logs_folder: &str,
+        last_error: Option<&str>,
+    ) -> anyhow::Result<()> {
         let window = match &self.settings_window {
             Some(window) => window.clone_strong(),
             None => {
@@ -97,16 +99,8 @@ impl UiController {
         window.set_max_recording_seconds(SharedString::from(
             settings.max_recording_seconds.to_string(),
         ));
-        window.set_input_device_index(SharedString::from(
-            settings
-                .input_device_index
-                .map(|index| index.to_string())
-                .unwrap_or_default(),
-        ));
         window.set_start_with_windows(settings.start_with_windows);
         window.set_ui_language(SharedString::from(language_label(settings.ui_language)));
-        window.set_launch_minimized_to_tray(settings.launch_minimized_to_tray);
-        window.set_show_floating_recording_window(settings.show_floating_recording_window);
         window.set_enable_sounds(settings.enable_sounds);
         window.set_restore_clipboard_content(settings.restore_clipboard_content);
         window.set_delay_before_paste_milliseconds(SharedString::from(
@@ -117,10 +111,10 @@ impl UiController {
                 .delay_before_clipboard_restore_milliseconds
                 .to_string(),
         ));
-        window.set_status_text(SharedString::from(format!(
-            "Profile: {} ({})",
-            profile.name, profile.base_url
-        )));
+        window.set_logs_folder(SharedString::from(logs_folder));
+        window.set_log_level(SharedString::from(settings.log_level.as_str()));
+        window.set_last_error_line(SharedString::from(last_error.unwrap_or("")));
+        window.set_status_text(SharedString::from("Ready"));
         window.show()?;
         Ok(())
     }
@@ -130,6 +124,7 @@ impl UiController {
         overlay.set_status_text(SharedString::from("Recording"));
         overlay.set_level(0.0);
         overlay.set_is_silent(false);
+        position_overlay_near_clock(&overlay);
         overlay.show()?;
         Ok(())
     }
@@ -145,6 +140,7 @@ impl UiController {
     pub fn set_overlay_status(&mut self, status: &str) -> anyhow::Result<()> {
         let overlay = self.overlay()?;
         overlay.set_status_text(SharedString::from(status));
+        position_overlay_near_clock(&overlay);
         overlay.show()?;
         Ok(())
     }
@@ -189,11 +185,8 @@ impl UiController {
             silence_threshold_percent: window.get_silence_threshold_percent().to_string(),
             silence_timeout_milliseconds: window.get_silence_timeout_milliseconds().to_string(),
             max_recording_seconds: window.get_max_recording_seconds().to_string(),
-            input_device_index: window.get_input_device_index().to_string(),
             start_with_windows: window.get_start_with_windows(),
             ui_language: window.get_ui_language().to_string(),
-            launch_minimized_to_tray: window.get_launch_minimized_to_tray(),
-            show_floating_recording_window: window.get_show_floating_recording_window(),
             enable_sounds: window.get_enable_sounds(),
             restore_clipboard_content: window.get_restore_clipboard_content(),
             delay_before_paste_milliseconds: window
@@ -202,6 +195,7 @@ impl UiController {
             delay_before_clipboard_restore_milliseconds: window
                 .get_delay_before_clipboard_restore_milliseconds()
                 .to_string(),
+            log_level: window.get_log_level().to_string(),
         })
     }
 
@@ -215,6 +209,29 @@ impl UiController {
             }
         }
     }
+}
+
+fn position_overlay_near_clock(overlay: &RecordingOverlay) {
+    let (screen_width, screen_height) = screen_size();
+    let width = overlay.window().size().width as i32;
+    let height = overlay.window().size().height as i32;
+    let margin = 24;
+    let taskbar_margin = 56;
+    let x = (screen_width - width - margin).max(0);
+    let y = (screen_height - height - taskbar_margin).max(0);
+    overlay.window().set_position(PhysicalPosition::new(x, y));
+}
+
+#[cfg(windows)]
+fn screen_size() -> (i32, i32) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+
+    unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
+}
+
+#[cfg(not(windows))]
+fn screen_size() -> (i32, i32) {
+    (1280, 720)
 }
 
 fn model_label(model: &str) -> &str {
@@ -258,16 +275,6 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
     let tx = command_tx.clone();
     window.on_save(move || {
         let _ = tx.send(UiCommand::Save);
-    });
-
-    let tx = command_tx.clone();
-    window.on_refresh_devices(move || {
-        let _ = tx.send(UiCommand::RefreshDevices);
-    });
-
-    let tx = command_tx.clone();
-    window.on_test_microphone(move || {
-        let _ = tx.send(UiCommand::TestMicrophone);
     });
 
     let tx = command_tx.clone();

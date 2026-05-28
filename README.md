@@ -35,9 +35,8 @@ cargo build --release
 1. Start VoiceInsert. The app appears in the system tray.
 2. Open `Settings` from the tray context menu.
 3. Select an API profile, enter an API key if needed, load models, and select a model.
-4. Select a microphone and test the input level if needed.
-5. Place the cursor in the target window and press `Ctrl+Space` to recognize speech.
-6. Use `Alt+Y` to translate speech to English.
+4. Place the cursor in the target window and press `Ctrl+Space` to recognize speech.
+5. Use `Alt+Y` to translate speech to English.
 
 During recording, VoiceInsert shows a compact window with a scrolling signal amplitude waveform. After the API response is received, the text is inserted into the active window through the clipboard.
 
@@ -82,8 +81,8 @@ Normal transcription is not translated by VoiceInsert. If the transcription endp
 - Audio and recognized text are not saved to disk.
 - Logs do not contain audio, recognized text, or API keys.
 - Settings use sidebar navigation, compact profile controls, one model field, and a global status bar.
-- Microphone selection displays full Windows CoreAudio device names, and the full selected name is available in a tooltip.
-- The `Logs` section shows the last error time and message for the current app session.
+- VoiceInsert always records from the current system default microphone.
+- The `Logs` section shows the logs folder, log level, and last error for the current app session.
 
 ## Privacy
 
