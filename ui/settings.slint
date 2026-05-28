@@ -1,17 +1,17 @@
 component Field inherits Rectangle {
     in-out property <string> value: "";
 
-    height: 34px;
+    height: 36px;
     background: #ffffff;
     border-color: #c8d4ce;
     border-width: 1px;
-    border-radius: 4px;
+    border-radius: 6px;
 
     TextInput {
         text <=> root.value;
-        x: 10px;
+        x: 12px;
         y: 0;
-        width: parent.width - 20px;
+        width: parent.width - 24px;
         height: parent.height;
         color: #1f2a28;
         font-size: 14px;
@@ -22,25 +22,57 @@ component Field inherits Rectangle {
 
 component NavItem inherits Rectangle {
     in property <string> label: "";
+    in property <string> mark: "";
     in property <bool> selected: false;
     callback clicked();
 
-    height: 38px;
+    height: 42px;
     background: selected ? #dceee9 : transparent;
-    border-radius: 5px;
+    border-radius: 6px;
+
+    Rectangle {
+        x: 0;
+        y: 7px;
+        width: 3px;
+        height: 28px;
+        background: root.selected ? #51b3a2 : transparent;
+        border-radius: 2px;
+    }
+
+    Rectangle {
+        x: 14px;
+        y: 9px;
+        width: 24px;
+        height: 24px;
+        background: root.selected ? #51b3a2 : #d6e1dc;
+        border-radius: 5px;
+
+        Text {
+            text: root.mark;
+            color: root.selected ? #ffffff : #50615c;
+            font-size: 11px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
 
     Text {
         text: root.label;
-        color: selected ? #1f2a28 : #66746e;
+        color: selected ? #1f2a28 : #61716b;
         font-size: 14px;
-        font-weight: selected ? 600 : 400;
-        x: 14px;
-        width: parent.width - 28px;
+        font-weight: selected ? 700 : 400;
+        x: 48px;
+        y: 0;
+        width: parent.width - 58px;
+        height: parent.height;
         horizontal-alignment: left;
         vertical-alignment: center;
     }
 
     TouchArea {
+        width: parent.width;
+        height: parent.height;
         clicked => { root.clicked(); }
     }
 }
@@ -48,22 +80,53 @@ component NavItem inherits Rectangle {
 component ActionButton inherits Rectangle {
     in property <string> label: "";
     in property <brush> fill: #cfddd6;
+    in property <brush> hover-fill: #bfd1ca;
     callback clicked();
 
-    width: 104px;
-    height: 34px;
-    background: touch.pressed ? #9ccfc4 : fill;
-    border-radius: 4px;
+    width: 118px;
+    height: 38px;
+    background: touch.pressed ? #9ccfc4 : touch.has-hover ? hover-fill : fill;
+    border-radius: 6px;
 
     Text {
         text: root.label;
         color: #10231f;
         font-size: 14px;
+        font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
 
     touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+component SmallButton inherits Rectangle {
+    in property <string> label: "";
+    callback clicked();
+
+    width: 104px;
+    height: 34px;
+    background: touch.pressed ? #d5e5df : touch.has-hover ? #edf5f2 : #ffffff;
+    border-color: #c8d4ce;
+    border-width: 1px;
+    border-radius: 6px;
+
+    Text {
+        text: root.label;
+        color: #1f2a28;
+        font-size: 13px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
         clicked => { root.clicked(); }
     }
 }
@@ -73,8 +136,17 @@ component PageTitle inherits Text {
 
     text: label;
     color: #1f2a28;
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+component SectionTitle inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #1f2a28;
+    font-size: 15px;
+    font-weight: 700;
 }
 
 component Label inherits Text {
@@ -85,12 +157,73 @@ component Label inherits Text {
     font-size: 13px;
 }
 
-component InfoLine inherits Text {
+component ValueText inherits Text {
     in property <string> label: "";
 
     text: label;
-    color: #1f2a28;
+    color: #24312e;
     font-size: 14px;
+}
+
+component KeyValue inherits HorizontalLayout {
+    in property <string> name: "";
+    in property <string> value: "";
+
+    height: 28px;
+    spacing: 12px;
+
+    Label {
+        label: root.name;
+        width: 150px;
+        vertical-alignment: center;
+    }
+
+    ValueText {
+        label: root.value;
+        vertical-alignment: center;
+        horizontal-stretch: 1;
+    }
+}
+
+component Divider inherits Rectangle {
+    height: 1px;
+    background: #dfe8e4;
+}
+
+component StatusPill inherits Rectangle {
+    in property <string> label: "Ready";
+
+    width: 116px;
+    height: 28px;
+    background: #e0f3ed;
+    border-color: #a9d8ca;
+    border-width: 1px;
+    border-radius: 6px;
+
+    Rectangle {
+        x: 12px;
+        y: 10px;
+        width: 8px;
+        height: 8px;
+        background: #35a878;
+        border-radius: 4px;
+    }
+
+    Text {
+        text: root.label;
+        x: 28px;
+        y: 0;
+        width: parent.width - 36px;
+        height: parent.height;
+        color: #17604a;
+        font-size: 12px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+}
+
+component Section inherits VerticalLayout {
+    spacing: 10px;
 }
 
 export component SettingsWindow inherits Window {
@@ -117,151 +250,248 @@ export component SettingsWindow inherits Window {
     callback clear-logs();
 
     title: "VoiceInsert";
-    width: 820px;
-    height: 520px;
+    width: 1080px;
+    height: 720px;
     background: #f6f8f7;
 
     HorizontalLayout {
         spacing: 0px;
 
         Rectangle {
-            width: 190px;
+            width: 238px;
             background: #edf3f0;
             border-color: #d8e4de;
             border-width: 0px;
 
             VerticalLayout {
-                padding: 18px;
-                spacing: 10px;
+                padding-left: 22px;
+                padding-right: 18px;
+                padding-top: 24px;
+                padding-bottom: 18px;
+                spacing: 12px;
 
                 Text {
                     text: "VoiceInsert";
                     color: #1f2a28;
-                    font-size: 22px;
-                    font-weight: 600;
+                    font-size: 24px;
+                    font-weight: 700;
                 }
 
                 Text {
                     text: root.profile-line;
                     color: #66746e;
                     font-size: 13px;
+                    height: 22px;
+                    vertical-alignment: center;
                 }
 
-                Rectangle { height: 8px; background: transparent; }
+                Rectangle { height: 10px; background: transparent; }
 
-                NavItem { label: "General"; selected: root.selected-page == 0; clicked => { root.selected-page = 0; } }
-                NavItem { label: "Hotkeys"; selected: root.selected-page == 1; clicked => { root.selected-page = 1; } }
-                NavItem { label: "Audio"; selected: root.selected-page == 2; clicked => { root.selected-page = 2; } }
-                NavItem { label: "API"; selected: root.selected-page == 3; clicked => { root.selected-page = 3; } }
-                NavItem { label: "Insertion"; selected: root.selected-page == 4; clicked => { root.selected-page = 4; } }
-                NavItem { label: "Sounds"; selected: root.selected-page == 5; clicked => { root.selected-page = 5; } }
-                NavItem { label: "Logs"; selected: root.selected-page == 6; clicked => { root.selected-page = 6; } }
+                NavItem { mark: "G"; label: "General"; selected: root.selected-page == 0; clicked => { root.selected-page = 0; } }
+                NavItem { mark: "H"; label: "Hotkeys"; selected: root.selected-page == 1; clicked => { root.selected-page = 1; } }
+                NavItem { mark: "A"; label: "Audio"; selected: root.selected-page == 2; clicked => { root.selected-page = 2; } }
+                NavItem { mark: "API"; label: "API"; selected: root.selected-page == 3; clicked => { root.selected-page = 3; } }
+                NavItem { mark: "I"; label: "Insertion"; selected: root.selected-page == 4; clicked => { root.selected-page = 4; } }
+                NavItem { mark: "S"; label: "Sounds"; selected: root.selected-page == 5; clicked => { root.selected-page = 5; } }
+                NavItem { mark: "L"; label: "Logs"; selected: root.selected-page == 6; clicked => { root.selected-page = 6; } }
+
+                Rectangle { vertical-stretch: 1; background: transparent; }
+
+                Rectangle {
+                    height: 66px;
+                    background: #e5eee9;
+                    border-color: #d3e0da;
+                    border-width: 1px;
+                    border-radius: 6px;
+
+                    Text {
+                        text: root.status-text == "" ? "Ready" : root.status-text;
+                        x: 12px;
+                        y: 8px;
+                        width: parent.width - 24px;
+                        height: parent.height - 16px;
+                        color: #50615c;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                }
             }
         }
 
-        VerticalLayout {
-            padding: 22px;
-            spacing: 14px;
+        Rectangle {
+            background: #f8faf9;
+            horizontal-stretch: 1;
 
-            Rectangle {
-                background: root.status-text == "" ? #f6f8f7 : #eef6f3;
-                border-color: root.status-text == "" ? #f6f8f7 : #cfe2dc;
-                border-width: 1px;
-                border-radius: 5px;
-                height: 42px;
+            VerticalLayout {
+                padding-left: 32px;
+                padding-right: 32px;
+                padding-top: 28px;
+                padding-bottom: 22px;
+                spacing: 18px;
 
-                Text {
-                    text: root.status-text == "" ? "Ready" : root.status-text;
-                    color: #50615c;
-                    x: 12px;
-                    width: parent.width - 24px;
-                    height: parent.height;
-                    font-size: 13px;
-                    vertical-alignment: center;
+                HorizontalLayout {
+                    height: 44px;
+                    spacing: 14px;
+
+                    PageTitle {
+                        label: root.selected-page == 0 ? "General" :
+                            root.selected-page == 1 ? "Hotkeys" :
+                            root.selected-page == 2 ? "Audio" :
+                            root.selected-page == 3 ? "API" :
+                            root.selected-page == 4 ? "Insertion" :
+                            root.selected-page == 5 ? "Sounds" : "Logs";
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+
+                    StatusPill { label: "Ready"; }
                 }
-            }
 
-            Rectangle {
-                background: #fcfdfb;
-                border-color: #dde6e1;
-                border-width: 1px;
-                border-radius: 5px;
-                vertical-stretch: 1;
+                Rectangle {
+                    height: 74px;
+                    background: #ffffff;
+                    border-color: #dce6e1;
+                    border-width: 1px;
+                    border-radius: 6px;
 
-                VerticalLayout {
-                    padding: 20px;
-                    spacing: 11px;
+                    HorizontalLayout {
+                        padding-left: 18px;
+                        padding-right: 18px;
+                        padding-top: 12px;
+                        padding-bottom: 12px;
+                        spacing: 22px;
 
-                    if root.selected-page == 0: VerticalLayout {
-                        spacing: 12px;
-                        PageTitle { label: "General"; }
-                        InfoLine { label: root.profile-line; }
-                        InfoLine { label: root.recording-mode-line; }
-                    }
-
-                    if root.selected-page == 1: VerticalLayout {
-                        spacing: 10px;
-                        PageTitle { label: "Hotkeys"; }
-
-                        Label { label: "Transcription"; }
-                        Field { value <=> root.transcription-hotkey; }
-
-                        Label { label: "Translation"; }
-                        Field { value <=> root.translation-hotkey; }
-                    }
-
-                    if root.selected-page == 2: VerticalLayout {
-                        spacing: 12px;
-                        PageTitle { label: "Audio"; }
-                    }
-
-                    if root.selected-page == 3: VerticalLayout {
-                        spacing: 10px;
-                        PageTitle { label: "API"; }
-                        InfoLine { label: root.profile-line; }
-
-                        Label { label: "Base URL"; }
-                        Field { value <=> root.api-base-url; }
-
-                        Label { label: "Model"; }
-                        Field { value <=> root.model-name; }
-
-                        HorizontalLayout {
-                            spacing: 8px;
-                            ActionButton { label: "Models"; fill: #cfddd6; clicked => { root.load-models(); } }
-                            ActionButton { label: "Test"; fill: #cfddd6; clicked => { root.test-api-connection(); } }
-                        }
-                    }
-
-                    if root.selected-page == 4: VerticalLayout {
-                        spacing: 12px;
-                        PageTitle { label: "Insertion"; }
-                    }
-
-                    if root.selected-page == 5: VerticalLayout {
-                        spacing: 12px;
-                        PageTitle { label: "Sounds"; }
-                    }
-
-                    if root.selected-page == 6: VerticalLayout {
-                        spacing: 12px;
-                        PageTitle { label: "Logs"; }
-                        InfoLine { label: root.status-text == "" ? "No recent status message." : root.status-text; }
-
-                        HorizontalLayout {
-                            spacing: 8px;
-                            ActionButton { label: "Open"; fill: #cfddd6; clicked => { root.open-logs-folder(); } }
-                            ActionButton { label: "Clear"; fill: #cfddd6; clicked => { root.clear-logs(); } }
-                        }
+                        KeyValue { name: "Profile"; value: root.profile-line; }
+                        KeyValue { name: "API"; value: root.api-base-url; }
                     }
                 }
-            }
 
-            HorizontalLayout {
-                spacing: 8px;
-                Rectangle { horizontal-stretch: 1; background: transparent; }
-                ActionButton { label: "Save"; fill: #51b3a2; clicked => { root.save(); } }
-                ActionButton { label: "Close"; fill: #cfddd6; clicked => { root.close(); } }
+                Rectangle {
+                    background: #ffffff;
+                    border-color: #dce6e1;
+                    border-width: 1px;
+                    border-radius: 6px;
+                    vertical-stretch: 1;
+
+                    VerticalLayout {
+                        padding: 24px;
+                        spacing: 18px;
+
+                        if root.selected-page == 0: VerticalLayout {
+                            spacing: 18px;
+
+                            Section {
+                                SectionTitle { label: "Profile"; }
+                                KeyValue { name: "Active profile"; value: root.profile-line; }
+                                KeyValue { name: "Endpoint"; value: root.api-base-url; }
+                                KeyValue { name: "Model"; value: root.model-name; }
+                            }
+
+                            Divider {}
+
+                            Section {
+                                SectionTitle { label: "Recording"; }
+                                KeyValue { name: "Mode"; value: root.recording-mode-line; }
+                                KeyValue { name: "Audio format"; value: "16 kHz mono WAV"; }
+                            }
+                        }
+
+                        if root.selected-page == 1: VerticalLayout {
+                            spacing: 14px;
+
+                            SectionTitle { label: "Global hotkeys"; }
+
+                            Label { label: "Transcription hotkey"; }
+                            Field { value <=> root.transcription-hotkey; }
+
+                            Label { label: "Translation hotkey"; }
+                            Field { value <=> root.translation-hotkey; }
+                        }
+
+                        if root.selected-page == 2: VerticalLayout {
+                            spacing: 18px;
+
+                            Section {
+                                SectionTitle { label: "Input"; }
+                                KeyValue { name: "Device"; value: "System default"; }
+                                KeyValue { name: "Capture"; value: "Microphone to WAV"; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                SmallButton { label: "Refresh"; clicked => { root.refresh-devices(); } }
+                                SmallButton { label: "Test mic"; clicked => { root.test-microphone(); } }
+                            }
+                        }
+
+                        if root.selected-page == 3: VerticalLayout {
+                            spacing: 14px;
+
+                            SectionTitle { label: "API profile"; }
+
+                            Label { label: "Base URL"; }
+                            Field { value <=> root.api-base-url; }
+
+                            Label { label: "Model"; }
+                            Field { value <=> root.model-name; }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                SmallButton { label: "Models"; clicked => { root.load-models(); } }
+                                SmallButton { label: "Test"; clicked => { root.test-api-connection(); } }
+                            }
+                        }
+
+                        if root.selected-page == 4: VerticalLayout {
+                            spacing: 18px;
+
+                            Section {
+                                SectionTitle { label: "Clipboard"; }
+                                KeyValue { name: "Insertion"; value: "Paste through clipboard"; }
+                                KeyValue { name: "Restore"; value: "Enabled"; }
+                            }
+                        }
+
+                        if root.selected-page == 5: VerticalLayout {
+                            spacing: 18px;
+
+                            Section {
+                                SectionTitle { label: "Events"; }
+                                KeyValue { name: "Record start"; value: "Enabled"; }
+                                KeyValue { name: "Record stop"; value: "Enabled"; }
+                            }
+                        }
+
+                        if root.selected-page == 6: VerticalLayout {
+                            spacing: 18px;
+
+                            Section {
+                                SectionTitle { label: "Diagnostics"; }
+                                KeyValue { name: "Last status"; value: root.status-text == "" ? "Ready" : root.status-text; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                SmallButton { label: "Open"; clicked => { root.open-logs-folder(); } }
+                                SmallButton { label: "Clear"; clicked => { root.clear-logs(); } }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    height: 42px;
+                    spacing: 10px;
+
+                    ValueText {
+                        label: root.status-text == "" ? "Ready" : root.status-text;
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                    }
+
+                    ActionButton { label: "Save"; fill: #51b3a2; hover-fill: #5ec1af; clicked => { root.save(); } }
+                    ActionButton { label: "Close"; fill: #cfddd6; hover-fill: #c4d4cd; clicked => { root.close(); } }
+                }
             }
         }
     }
