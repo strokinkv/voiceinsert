@@ -43,6 +43,7 @@ component FieldRow inherits HorizontalLayout {
 
     height: 34px;
     horizontal-stretch: 1;
+    preferred-width: 100%;
     spacing: 14px;
 
     Label {
@@ -63,6 +64,7 @@ component ReadOnlyRow inherits HorizontalLayout {
 
     height: 28px;
     horizontal-stretch: 1;
+    preferred-width: 100%;
     spacing: 14px;
 
     Label {
@@ -222,6 +224,7 @@ component ToggleRow inherits HorizontalLayout {
 
     height: 30px;
     horizontal-stretch: 1;
+    preferred-width: 100%;
     spacing: 12px;
 
     Text {
@@ -335,6 +338,7 @@ component StatusPill inherits Rectangle {
 
 component Section inherits VerticalLayout {
     horizontal-stretch: 1;
+    preferred-width: 100%;
     spacing: 8px;
 }
 
@@ -477,6 +481,7 @@ export component SettingsWindow inherits Window {
                 Rectangle {
                     horizontal-stretch: 1;
                     vertical-stretch: 1;
+                    preferred-width: 100%;
                     background: #ffffff;
                     border-color: #dce6e1;
                     border-width: 1px;
@@ -488,6 +493,7 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 0: VerticalLayout {
                             horizontal-stretch: 1;
+                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
@@ -507,6 +513,7 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 1: VerticalLayout {
                             horizontal-stretch: 1;
+                            preferred-width: 100%;
                             spacing: 10px;
 
                             FieldRow { label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey"; value <=> root.transcription-hotkey; }
@@ -514,6 +521,8 @@ export component SettingsWindow inherits Window {
 
                             Label { label: root.is-russian ? "Режим записи" : "Recording mode"; }
                             HorizontalLayout {
+                                horizontal-stretch: 1;
+                                preferred-width: 100%;
                                 spacing: 10px;
                                 OptionButton { label: root.is-russian ? "Переключатель" : "Toggle"; selected: root.recording-mode == "Toggle"; clicked => { root.recording-mode = "Toggle"; } }
                                 OptionButton { label: root.is-russian ? "Удержание" : "Hold"; selected: root.recording-mode == "Hold"; clicked => { root.recording-mode = "Hold"; } }
@@ -527,10 +536,13 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 2: VerticalLayout {
                             horizontal-stretch: 1;
+                            preferred-width: 100%;
                             spacing: 10px;
 
                             HorizontalLayout {
                                 height: 34px;
+                                horizontal-stretch: 1;
+                                preferred-width: 100%;
                                 spacing: 8px;
                                 Label { label: root.is-russian ? "Имя профиля" : "Profile name"; horizontal-stretch: 1; vertical-alignment: center; }
                                 Field { value <=> root.profile-name; width: 360px; }
@@ -546,6 +558,8 @@ export component SettingsWindow inherits Window {
                             FieldRow { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; value <=> root.request-timeout-seconds; }
 
                             HorizontalLayout {
+                                horizontal-stretch: 1;
+                                preferred-width: 100%;
                                 spacing: 10px;
                                 SmallButton { label: root.is-russian ? "Модели" : "Models"; clicked => { root.load-models(); } }
                                 SmallButton { label: root.is-russian ? "Тест" : "Test"; clicked => { root.test-api-connection(); } }
@@ -554,6 +568,7 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 3: VerticalLayout {
                             horizontal-stretch: 1;
+                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
@@ -568,6 +583,7 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 4: VerticalLayout {
                             horizontal-stretch: 1;
+                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
@@ -579,6 +595,8 @@ export component SettingsWindow inherits Window {
                             }
 
                             HorizontalLayout {
+                                horizontal-stretch: 1;
+                                preferred-width: 100%;
                                 spacing: 10px;
                                 SmallButton { label: root.is-russian ? "Старт" : "Start"; }
                                 SmallButton { label: root.is-russian ? "Стоп" : "Stop"; }
@@ -588,6 +606,7 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 5: VerticalLayout {
                             horizontal-stretch: 1;
+                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
@@ -600,6 +619,8 @@ export component SettingsWindow inherits Window {
                             Section {
                                 SectionTitle { label: root.is-russian ? "Уровень логов" : "Log level"; }
                                 HorizontalLayout {
+                                    horizontal-stretch: 1;
+                                    preferred-width: 100%;
                                     spacing: 10px;
                                     OptionButton { label: root.is-russian ? "Инфо" : "Information"; selected: root.log-level == "Information"; clicked => { root.log-level = "Information"; } }
                                     OptionButton { label: root.is-russian ? "Отладка" : "Debug"; selected: root.log-level == "Debug"; clicked => { root.log-level = "Debug"; } }
@@ -609,6 +630,8 @@ export component SettingsWindow inherits Window {
                             }
 
                             HorizontalLayout {
+                                horizontal-stretch: 1;
+                                preferred-width: 100%;
                                 spacing: 10px;
                                 SmallButton { label: root.is-russian ? "Открыть" : "Open"; clicked => { root.open-logs-folder(); } }
                                 SmallButton { label: root.is-russian ? "Очистить" : "Clear"; clicked => { root.clear-logs(); } }
