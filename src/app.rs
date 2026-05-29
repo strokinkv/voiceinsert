@@ -179,64 +179,19 @@ impl AppRuntime {
 
     fn handle_ui_command(&mut self, command: UiCommand) -> anyhow::Result<()> {
         match command {
-            UiCommand::Save => {
-                if let Some(edit) = self.ui.settings_edit() {
-                    crate::hotkeys::matcher::validate_pair(
-                        &edit.transcription_hotkey,
-                        &edit.translation_hotkey,
-                    )?;
-                    crate::api::endpoints::endpoint(&edit.base_url, "/v1/models")?;
-                    let old_hotkey = self.settings.hotkey.clone();
-                    let old_translation_hotkey = self.settings.translation_hotkey.clone();
-                    let old_language = self.settings.ui_language;
-                    let active_profile_id = self.settings.active_api_profile_id.clone();
-                    let api_key = edit.api_key.trim().to_string();
-                    self.settings = apply_settings_edit(self.settings.clone(), edit).normalized();
-                    if api_key.is_empty() {
-                        self.api_keys.remove(&active_profile_id);
-                    } else {
-                        self.api_keys.insert(active_profile_id, api_key);
+            UiCommand::SettingsChanged => match self.save_settings_from_ui() {
+                Ok(models_source_changed) => {
+                    self.ui
+                        .set_status(settings_saved_status(self.settings.ui_language));
+                    if models_source_changed {
+                        self.queue_model_load_for_active_profile()?;
                     }
-                    crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
-                    if self.settings.hotkey != old_hotkey
-                        || self.settings.translation_hotkey != old_translation_hotkey
-                    {
-                        self.hotkeys = GlobalHotkeyEvents::register(
-                            &self.settings.hotkey,
-                            &self.settings.translation_hotkey,
-                        )?;
-                    }
-                    if self.settings.ui_language != old_language {
-                        self.tray.set_language(self.settings.ui_language);
-                    }
-                    self.clipboard = ClipboardInserter {
-                        restore_clipboard: self.settings.restore_clipboard_content,
-                        delay_before_paste_ms: self.settings.delay_before_paste_milliseconds,
-                        delay_before_restore_ms: self
-                            .settings
-                            .delay_before_clipboard_restore_milliseconds,
-                    };
-                    self.sounds.enabled = self.settings.enable_sounds;
-                    self.state = VoiceInsertState::new(
-                        self.settings.recording_mode,
-                        f32::from(self.settings.silence_threshold_percent) / 100.0,
-                        self.settings.silence_timeout_milliseconds,
-                        self.settings.max_recording_seconds.saturating_mul(1000),
-                    );
-                    self.http = reqwest::Client::builder()
-                        .timeout(Duration::from_secs(self.settings.request_timeout_seconds))
-                        .build()?;
-                    #[cfg(windows)]
-                    crate::autostart::set_enabled(
-                        self.settings.start_with_windows,
-                        &std::env::current_exe()?,
-                    )?;
                 }
-                crate::settings::save_settings(&self.paths, &self.settings)?;
-                self.ui
-                    .set_status(settings_saved_status(self.settings.ui_language));
-                self.queue_model_load_for_active_profile()?;
-            }
+                Err(error) => {
+                    tracing::warn!(message = %error, "settings autosave skipped");
+                    self.ui.set_status(error.to_string());
+                }
+            },
             UiCommand::AddApiProfile => {
                 let new_profile = next_api_profile(&self.settings.api_profiles);
                 self.settings.active_api_profile_id = new_profile.id.clone();
@@ -312,6 +267,72 @@ impl AppRuntime {
         }
 
         Ok(())
+    }
+
+    fn save_settings_from_ui(&mut self) -> anyhow::Result<bool> {
+        let Some(edit) = self.ui.settings_edit() else {
+            return Ok(false);
+        };
+
+        crate::hotkeys::matcher::validate_pair(
+            &edit.transcription_hotkey,
+            &edit.translation_hotkey,
+        )?;
+        crate::api::endpoints::endpoint(&edit.base_url, "/v1/models")?;
+
+        let old_hotkey = self.settings.hotkey.clone();
+        let old_translation_hotkey = self.settings.translation_hotkey.clone();
+        let old_language = self.settings.ui_language;
+        let active_profile_id = self.settings.active_api_profile_id.clone();
+        let old_profile = self.settings.active_profile().clone();
+        let old_api_key = api_key_for_profile(&self.api_keys, &active_profile_id).to_string();
+        let api_key = edit.api_key.trim().to_string();
+
+        self.settings = apply_settings_edit(self.settings.clone(), edit).normalized();
+        if api_key.is_empty() {
+            self.api_keys.remove(&active_profile_id);
+        } else {
+            self.api_keys
+                .insert(active_profile_id.clone(), api_key.clone());
+        }
+        crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
+
+        if self.settings.hotkey != old_hotkey
+            || self.settings.translation_hotkey != old_translation_hotkey
+        {
+            self.hotkeys = GlobalHotkeyEvents::register(
+                &self.settings.hotkey,
+                &self.settings.translation_hotkey,
+            )?;
+        }
+        if self.settings.ui_language != old_language {
+            self.tray.set_language(self.settings.ui_language);
+        }
+        self.clipboard = ClipboardInserter {
+            restore_clipboard: self.settings.restore_clipboard_content,
+            delay_before_paste_ms: self.settings.delay_before_paste_milliseconds,
+            delay_before_restore_ms: self.settings.delay_before_clipboard_restore_milliseconds,
+        };
+        self.sounds.enabled = self.settings.enable_sounds;
+        self.state = VoiceInsertState::new(
+            self.settings.recording_mode,
+            f32::from(self.settings.silence_threshold_percent) / 100.0,
+            self.settings.silence_timeout_milliseconds,
+            self.settings.max_recording_seconds.saturating_mul(1000),
+        );
+        self.http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(self.settings.request_timeout_seconds))
+            .build()?;
+        #[cfg(windows)]
+        crate::autostart::set_enabled(self.settings.start_with_windows, &std::env::current_exe()?)?;
+
+        crate::settings::save_settings(&self.paths, &self.settings)?;
+        self.ui.set_profile_metadata(&self.settings);
+
+        let new_profile = self.settings.active_profile();
+        Ok(old_profile.base_url != new_profile.base_url
+            || old_profile.request_timeout_seconds != new_profile.request_timeout_seconds
+            || old_api_key != api_key)
     }
 
     fn handle_hotkey_action(&mut self, action: HotkeyAction) {

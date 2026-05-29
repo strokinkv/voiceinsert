@@ -19,6 +19,7 @@ component ValueText inherits Text {
 
 component Field inherits Rectangle {
     in-out property <string> value: "";
+    callback edited();
 
     height: 34px;
     background: #ffffff;
@@ -36,6 +37,7 @@ component Field inherits Rectangle {
         font-size: 14px;
         vertical-alignment: center;
         single-line: true;
+        edited => { root.edited(); }
     }
 }
 
@@ -43,6 +45,7 @@ component FieldRow inherits HorizontalLayout {
     in property <string> label: "";
     in-out property <string> value: "";
     in property <length> field-width: 360px;
+    callback edited();
 
     height: 34px;
     horizontal-stretch: 1;
@@ -57,6 +60,7 @@ component FieldRow inherits HorizontalLayout {
     Field {
         value <=> root.value;
         width: root.field-width;
+        edited => { root.edited(); }
     }
 }
 
@@ -142,33 +146,6 @@ component NavItem inherits Rectangle {
     }
 }
 
-component ActionButton inherits Rectangle {
-    in property <string> label: "";
-    in property <brush> fill: #cfddd6;
-    in property <brush> hover-fill: #bfd1ca;
-    callback clicked();
-
-    width: 118px;
-    height: 38px;
-    background: touch.pressed ? #9ccfc4 : touch.has-hover ? hover-fill : fill;
-    border-radius: 6px;
-
-    Text {
-        text: root.label;
-        color: #10231f;
-        font-size: 14px;
-        font-weight: 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    touch := TouchArea {
-        width: parent.width;
-        height: parent.height;
-        clicked => { root.clicked(); }
-    }
-}
-
 component SmallButton inherits Rectangle {
     in property <string> label: "";
     callback clicked();
@@ -226,6 +203,7 @@ component TinyButton inherits Rectangle {
 component ToggleRow inherits HorizontalLayout {
     in property <string> label: "";
     in-out property <bool> checked: false;
+    callback toggled();
 
     height: 30px;
     horizontal-stretch: 1;
@@ -257,7 +235,10 @@ component ToggleRow inherits HorizontalLayout {
         TouchArea {
             width: parent.width;
             height: parent.height;
-            clicked => { root.checked = !root.checked; }
+            clicked => {
+                root.checked = !root.checked;
+                root.toggled();
+            }
         }
     }
 }
@@ -344,8 +325,7 @@ export component SettingsWindow inherits Window {
     property <bool> is-russian: root.ui-language == "Russian";
     property <length> content-width: root.width - 290px;
 
-    callback save();
-    callback close();
+    callback settings-changed();
     callback add-api-profile();
     callback delete-api-profile();
     callback select-api-profile(profile-name: string);
@@ -466,14 +446,14 @@ export component SettingsWindow inherits Window {
 
                             Section {
                                 SectionTitle { label: root.is-russian ? "Приложение" : "Application"; }
-                                ToggleRow { label: root.is-russian ? "Запускать вместе с Windows" : "Start with Windows"; checked <=> root.start-with-windows; }
-                                ToggleRow { label: root.is-russian ? "Звуковое оповещение" : "Sound alerts"; checked <=> root.enable-sounds; }
+                                ToggleRow { label: root.is-russian ? "Запускать вместе с Windows" : "Start with Windows"; checked <=> root.start-with-windows; toggled => { root.settings-changed(); } }
+                                ToggleRow { label: root.is-russian ? "Звуковое оповещение" : "Sound alerts"; checked <=> root.enable-sounds; toggled => { root.settings-changed(); } }
 
                                 Label { label: root.is-russian ? "Язык" : "Language"; }
                                 HorizontalLayout {
                                     spacing: 10px;
-                                    OptionButton { label: "Русский"; selected: root.ui-language == "Russian"; clicked => { root.ui-language = "Russian"; } }
-                                    OptionButton { label: "English"; selected: root.ui-language == "English"; clicked => { root.ui-language = "English"; } }
+                                    OptionButton { label: "Русский"; selected: root.ui-language == "Russian"; clicked => { root.ui-language = "Russian"; root.settings-changed(); } }
+                                    OptionButton { label: "English"; selected: root.ui-language == "English"; clicked => { root.ui-language = "English"; root.settings-changed(); } }
                                 }
                             }
                         }
@@ -482,21 +462,21 @@ export component SettingsWindow inherits Window {
                             horizontal-stretch: 1;
                             spacing: 10px;
 
-                            FieldRow { label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey"; value <=> root.transcription-hotkey; }
-                            FieldRow { label: root.is-russian ? "Клавиша перевода" : "Translation hotkey"; value <=> root.translation-hotkey; }
+                            FieldRow { label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey"; value <=> root.transcription-hotkey; edited => { root.settings-changed(); } }
+                            FieldRow { label: root.is-russian ? "Клавиша перевода" : "Translation hotkey"; value <=> root.translation-hotkey; edited => { root.settings-changed(); } }
 
                             Label { label: root.is-russian ? "Режим записи" : "Recording mode"; }
                             HorizontalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 10px;
-                                OptionButton { label: root.is-russian ? "Переключатель" : "Toggle"; selected: root.recording-mode == "Toggle"; clicked => { root.recording-mode = "Toggle"; } }
-                                OptionButton { label: root.is-russian ? "Удержание" : "Hold"; selected: root.recording-mode == "Hold"; clicked => { root.recording-mode = "Hold"; } }
-                                OptionButton { label: root.is-russian ? "Тишина" : "Silence"; selected: root.recording-mode == "SilenceTimeout"; clicked => { root.recording-mode = "SilenceTimeout"; } }
+                                OptionButton { label: root.is-russian ? "Переключатель" : "Toggle"; selected: root.recording-mode == "Toggle"; clicked => { root.recording-mode = "Toggle"; root.settings-changed(); } }
+                                OptionButton { label: root.is-russian ? "Удержание" : "Hold"; selected: root.recording-mode == "Hold"; clicked => { root.recording-mode = "Hold"; root.settings-changed(); } }
+                                OptionButton { label: root.is-russian ? "Тишина" : "Silence"; selected: root.recording-mode == "SilenceTimeout"; clicked => { root.recording-mode = "SilenceTimeout"; root.settings-changed(); } }
                             }
 
-                            FieldRow { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; value <=> root.silence-threshold-percent; }
-                            FieldRow { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; value <=> root.silence-timeout-milliseconds; }
-                            FieldRow { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; value <=> root.max-recording-seconds; }
+                            FieldRow { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; value <=> root.silence-threshold-percent; edited => { root.settings-changed(); } }
+                            FieldRow { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; value <=> root.silence-timeout-milliseconds; edited => { root.settings-changed(); } }
+                            FieldRow { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; value <=> root.max-recording-seconds; edited => { root.settings-changed(); } }
                         }
 
                         if root.selected-page == 2: VerticalLayout {
@@ -518,13 +498,13 @@ export component SettingsWindow inherits Window {
                                 options: root.api-profile-options;
                                 selected(value) => { root.select-api-profile(value); }
                             }
-                            FieldRow { label: root.is-russian ? "Имя профиля" : "Profile name"; value <=> root.profile-name; }
-                            FieldRow { label: "Base URL"; value <=> root.api-base-url; }
-                            FieldRow { label: "API key"; value <=> root.api-key; }
-                            ComboRow { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; options: root.model-options; }
-                            FieldRow { label: root.is-russian ? "Язык распознавания" : "Language"; value <=> root.language; }
-                            FieldRow { label: root.is-russian ? "Температура" : "Temperature"; value <=> root.temperature; }
-                            FieldRow { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; value <=> root.request-timeout-seconds; }
+                            FieldRow { label: root.is-russian ? "Имя профиля" : "Profile name"; value <=> root.profile-name; edited => { root.settings-changed(); } }
+                            FieldRow { label: "Base URL"; value <=> root.api-base-url; edited => { root.settings-changed(); } }
+                            FieldRow { label: "API key"; value <=> root.api-key; edited => { root.settings-changed(); } }
+                            ComboRow { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; options: root.model-options; selected(value) => { root.settings-changed(); } }
+                            FieldRow { label: root.is-russian ? "Язык распознавания" : "Language"; value <=> root.language; edited => { root.settings-changed(); } }
+                            FieldRow { label: root.is-russian ? "Температура" : "Temperature"; value <=> root.temperature; edited => { root.settings-changed(); } }
+                            FieldRow { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; value <=> root.request-timeout-seconds; edited => { root.settings-changed(); } }
                         }
 
                         if root.selected-page == 3: VerticalLayout {
@@ -533,11 +513,11 @@ export component SettingsWindow inherits Window {
 
                             Section {
                                 SectionTitle { label: root.is-russian ? "Буфер обмена" : "Clipboard"; }
-                                ToggleRow { label: root.is-russian ? "Восстанавливать прежнее содержимое буфера" : "Restore previous clipboard content"; checked <=> root.restore-clipboard-content; }
+                                ToggleRow { label: root.is-russian ? "Восстанавливать прежнее содержимое буфера" : "Restore previous clipboard content"; checked <=> root.restore-clipboard-content; toggled => { root.settings-changed(); } }
                             }
 
-                            FieldRow { label: root.is-russian ? "Задержка перед вставкой, мс" : "Delay before paste, ms"; value <=> root.delay-before-paste-milliseconds; }
-                            FieldRow { label: root.is-russian ? "Задержка перед восстановлением, мс" : "Delay before restore, ms"; value <=> root.delay-before-clipboard-restore-milliseconds; }
+                            FieldRow { label: root.is-russian ? "Задержка перед вставкой, мс" : "Delay before paste, ms"; value <=> root.delay-before-paste-milliseconds; edited => { root.settings-changed(); } }
+                            FieldRow { label: root.is-russian ? "Задержка перед восстановлением, мс" : "Delay before restore, ms"; value <=> root.delay-before-clipboard-restore-milliseconds; edited => { root.settings-changed(); } }
                         }
 
                         if root.selected-page == 4: VerticalLayout {
@@ -561,10 +541,10 @@ export component SettingsWindow inherits Window {
                                 HorizontalLayout {
                                     horizontal-stretch: 1;
                                     spacing: 10px;
-                                    OptionButton { label: root.is-russian ? "Инфо" : "Information"; selected: root.log-level == "Information"; clicked => { root.log-level = "Information"; } }
-                                    OptionButton { label: root.is-russian ? "Отладка" : "Debug"; selected: root.log-level == "Debug"; clicked => { root.log-level = "Debug"; } }
-                                    OptionButton { label: root.is-russian ? "Предупреждения" : "Warning"; selected: root.log-level == "Warning"; clicked => { root.log-level = "Warning"; } }
-                                    OptionButton { label: root.is-russian ? "Ошибки" : "Error"; selected: root.log-level == "Error"; clicked => { root.log-level = "Error"; } }
+                                    OptionButton { label: root.is-russian ? "Инфо" : "Information"; selected: root.log-level == "Information"; clicked => { root.log-level = "Information"; root.settings-changed(); } }
+                                    OptionButton { label: root.is-russian ? "Отладка" : "Debug"; selected: root.log-level == "Debug"; clicked => { root.log-level = "Debug"; root.settings-changed(); } }
+                                    OptionButton { label: root.is-russian ? "Предупреждения" : "Warning"; selected: root.log-level == "Warning"; clicked => { root.log-level = "Warning"; root.settings-changed(); } }
+                                    OptionButton { label: root.is-russian ? "Ошибки" : "Error"; selected: root.log-level == "Error"; clicked => { root.log-level = "Error"; root.settings-changed(); } }
                                 }
                             }
 
@@ -584,8 +564,6 @@ export component SettingsWindow inherits Window {
                         vertical-alignment: center;
                     }
 
-                    ActionButton { label: root.is-russian ? "Сохранить" : "Save"; fill: #51b3a2; hover-fill: #5ec1af; clicked => { root.save(); } }
-                    ActionButton { label: root.is-russian ? "Закрыть" : "Close"; fill: #cfddd6; hover-fill: #c4d4cd; clicked => { root.close(); } }
                 }
             }
         }

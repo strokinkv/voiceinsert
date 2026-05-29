@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UiCommand {
-    Save,
+    SettingsChanged,
     AddApiProfile,
     DeleteApiProfile,
     SelectApiProfile(String),
@@ -159,6 +159,17 @@ impl UiController {
     pub fn set_status(&self, message: impl Into<SharedString>) {
         if let Some(window) = &self.settings_window {
             window.set_status_text(message.into());
+        }
+    }
+
+    pub fn set_profile_metadata(&self, settings: &AppSettings) {
+        if let Some(window) = &self.settings_window {
+            let profile = settings.active_profile();
+            window.set_profile_line(SharedString::from(format!("Profile: {}", profile.name)));
+            window.set_api_profile_options(shared_string_model(&api_profile_options_for_display(
+                settings,
+            )));
+            window.set_active_profile_name(SharedString::from(profile.name.as_str()));
         }
     }
 
@@ -321,16 +332,9 @@ impl Default for UiController {
 }
 
 fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand>) {
-    let weak = window.as_weak();
-    window.on_close(move || {
-        if let Some(window) = weak.upgrade() {
-            let _ = window.hide();
-        }
-    });
-
     let tx = command_tx.clone();
-    window.on_save(move || {
-        let _ = tx.send(UiCommand::Save);
+    window.on_settings_changed(move || {
+        let _ = tx.send(UiCommand::SettingsChanged);
     });
 
     let tx = command_tx.clone();
