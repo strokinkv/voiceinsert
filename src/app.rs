@@ -230,7 +230,8 @@ impl AppRuntime {
                     )?;
                 }
                 crate::settings::save_settings(&self.paths, &self.settings)?;
-                self.ui.set_status("Settings saved.");
+                self.ui
+                    .set_status(settings_saved_status(self.settings.ui_language));
             }
             UiCommand::LoadModels => {
                 let profile = self.settings.active_profile();
@@ -304,7 +305,8 @@ impl AppRuntime {
             }
             UiCommand::ClearLogs => {
                 clear_logs(&self.paths)?;
-                self.ui.set_status("Logs cleared.");
+                self.ui
+                    .set_status(logs_cleared_status(self.settings.ui_language));
             }
         }
 
@@ -682,6 +684,20 @@ fn parse_log_level(value: &str) -> &'static str {
     }
 }
 
+fn settings_saved_status(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::Russian => "Настройки сохранены.",
+        AppLanguage::English => "Settings saved.",
+    }
+}
+
+fn logs_cleared_status(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::Russian => "Логи очищены.",
+        AppLanguage::English => "Logs cleared.",
+    }
+}
+
 fn next_api_profile(existing: &[ApiProfile]) -> ApiProfile {
     let mut index = existing.len() + 1;
     loop {
@@ -954,11 +970,12 @@ fn acquire_single_instance(_name: &str) -> anyhow::Result<SingleInstanceGuard> {
 mod tests {
     use super::{
         OperationState, SingleInstanceGuard, StateCommand, VoiceInsertState, api_key_for_profile,
-        apply_settings_edit, clear_logs, model_for_request,
+        apply_settings_edit, clear_logs, logs_cleared_status, model_for_request,
+        settings_saved_status,
     };
     use crate::api::transcription::AudioRequestKind;
     use crate::paths::AppPaths;
-    use crate::settings::RecordingMode;
+    use crate::settings::{AppLanguage, RecordingMode};
     use crate::ui::SettingsEdit;
     use std::collections::BTreeMap;
 
@@ -1129,5 +1146,19 @@ mod tests {
         assert_eq!(settings.delay_before_paste_milliseconds, 120);
         assert_eq!(settings.delay_before_clipboard_restore_milliseconds, 500);
         assert_eq!(settings.log_level, "Debug");
+    }
+
+    #[test]
+    fn settings_status_messages_follow_ui_language() {
+        assert_eq!(
+            settings_saved_status(AppLanguage::Russian),
+            "Настройки сохранены."
+        );
+        assert_eq!(
+            settings_saved_status(AppLanguage::English),
+            "Settings saved."
+        );
+        assert_eq!(logs_cleared_status(AppLanguage::Russian), "Логи очищены.");
+        assert_eq!(logs_cleared_status(AppLanguage::English), "Logs cleared.");
     }
 }

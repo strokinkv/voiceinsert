@@ -114,7 +114,7 @@ impl UiController {
         window.set_logs_folder(SharedString::from(logs_folder));
         window.set_log_level(SharedString::from(settings.log_level.as_str()));
         window.set_last_error_line(SharedString::from(last_error.unwrap_or("")));
-        window.set_status_text(SharedString::from("Ready"));
+        window.set_status_text(SharedString::from(""));
         window.show()?;
         Ok(())
     }
