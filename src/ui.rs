@@ -1,18 +1,16 @@
 slint::include_modules!();
 
 use crate::settings::{AI2NPU_DEFAULT_MODEL, AppLanguage, AppSettings, RecordingMode};
-use slint::{ComponentHandle, PhysicalPosition, SharedString};
+use slint::{ComponentHandle, ModelRc, PhysicalPosition, SharedString, VecModel};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UiCommand {
     Save,
-    LoadModels,
-    TestApiConnection,
     AddApiProfile,
     DeleteApiProfile,
+    SelectApiProfile(String),
     OpenLogsFolder,
-    ClearLogs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,7 +60,7 @@ impl UiController {
         settings: &AppSettings,
         api_key: &str,
         logs_folder: &str,
-        last_error: Option<&str>,
+        model_options: &[String],
     ) -> anyhow::Result<()> {
         let window = match &self.settings_window {
             Some(window) => window.clone_strong(),
@@ -75,11 +73,19 @@ impl UiController {
         };
 
         let profile = settings.active_profile();
+        let model_name = model_label(&profile.model).to_string();
+        let profile_options = api_profile_options_for_display(settings);
         window.set_profile_line(SharedString::from(format!("Profile: {}", profile.name)));
+        window.set_api_profile_options(shared_string_model(&profile_options));
+        window.set_active_profile_name(SharedString::from(profile.name.as_str()));
         window.set_profile_name(SharedString::from(profile.name.as_str()));
         window.set_api_base_url(SharedString::from(profile.base_url.as_str()));
         window.set_api_key(SharedString::from(api_key));
-        window.set_model_name(SharedString::from(model_label(&profile.model)));
+        window.set_model_name(SharedString::from(model_name.as_str()));
+        window.set_model_options(shared_string_model(&model_options_for_display(
+            &model_name,
+            model_options,
+        )));
         window.set_language(SharedString::from(profile.language.as_str()));
         window.set_temperature(SharedString::from(format!("{:.1}", profile.temperature)));
         window.set_request_timeout_seconds(SharedString::from(
@@ -113,7 +119,6 @@ impl UiController {
         ));
         window.set_logs_folder(SharedString::from(logs_folder));
         window.set_log_level(SharedString::from(settings.log_level.as_str()));
-        window.set_last_error_line(SharedString::from(last_error.unwrap_or("")));
         window.set_status_text(SharedString::from(""));
         window.show()?;
         Ok(())
@@ -154,6 +159,21 @@ impl UiController {
     pub fn set_status(&self, message: impl Into<SharedString>) {
         if let Some(window) = &self.settings_window {
             window.set_status_text(message.into());
+        }
+    }
+
+    pub fn set_model_options(&self, current_model: &str, model_options: &[String]) {
+        if let Some(window) = &self.settings_window {
+            let visible_model = window.get_model_name().to_string();
+            let current_model = if visible_model.trim().is_empty() {
+                current_model
+            } else {
+                visible_model.trim()
+            };
+            window.set_model_options(shared_string_model(&model_options_for_display(
+                current_model,
+                model_options,
+            )));
         }
     }
 
@@ -243,6 +263,42 @@ fn model_label(model: &str) -> &str {
     }
 }
 
+fn model_options_for_display(current_model: &str, options: &[String]) -> Vec<String> {
+    let mut values = Vec::new();
+    let current_model = model_label(current_model).to_string();
+    if !current_model.trim().is_empty() {
+        values.push(current_model.clone());
+    }
+
+    for option in options {
+        let trimmed = option.trim();
+        if !trimmed.is_empty() && !values.iter().any(|value| value == trimmed) {
+            values.push(trimmed.to_string());
+        }
+    }
+
+    values
+}
+
+fn api_profile_options_for_display(settings: &AppSettings) -> Vec<String> {
+    let active_profile = settings.active_profile();
+    let mut values = vec![active_profile.name.clone()];
+    for profile in &settings.api_profiles {
+        if !profile.name.trim().is_empty() && !values.iter().any(|value| value == &profile.name) {
+            values.push(profile.name.clone());
+        }
+    }
+    values
+}
+
+fn shared_string_model(values: &[String]) -> ModelRc<SharedString> {
+    let rows = values
+        .iter()
+        .map(|value| SharedString::from(value.as_str()))
+        .collect::<Vec<_>>();
+    ModelRc::new(VecModel::from(rows))
+}
+
 fn recording_mode_label(mode: RecordingMode) -> &'static str {
     match mode {
         RecordingMode::Toggle => "Toggle",
@@ -278,16 +334,6 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
     });
 
     let tx = command_tx.clone();
-    window.on_load_models(move || {
-        let _ = tx.send(UiCommand::LoadModels);
-    });
-
-    let tx = command_tx.clone();
-    window.on_test_api_connection(move || {
-        let _ = tx.send(UiCommand::TestApiConnection);
-    });
-
-    let tx = command_tx.clone();
     window.on_add_api_profile(move || {
         let _ = tx.send(UiCommand::AddApiProfile);
     });
@@ -298,23 +344,51 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
     });
 
     let tx = command_tx.clone();
-    window.on_open_logs_folder(move || {
-        let _ = tx.send(UiCommand::OpenLogsFolder);
+    window.on_select_api_profile(move |profile_name| {
+        let _ = tx.send(UiCommand::SelectApiProfile(profile_name.to_string()));
     });
 
     let tx = command_tx.clone();
-    window.on_clear_logs(move || {
-        let _ = tx.send(UiCommand::ClearLogs);
+    window.on_open_logs_folder(move || {
+        let _ = tx.send(UiCommand::OpenLogsFolder);
     });
 }
 
 #[cfg(test)]
 mod tests {
-    use super::model_label;
+    use super::{api_profile_options_for_display, model_label, model_options_for_display};
 
     #[test]
     fn empty_model_label_uses_default_transcription_model() {
         assert_eq!(model_label(""), "openai/whisper-large-v3-turbo");
         assert_eq!(model_label(" custom "), "custom");
+    }
+
+    #[test]
+    fn model_options_include_current_model_first_and_deduplicate() {
+        let options = vec![
+            "openai/whisper-large-v3-turbo".to_string(),
+            "custom".to_string(),
+            " custom ".to_string(),
+        ];
+
+        assert_eq!(
+            model_options_for_display("custom", &options),
+            vec![
+                "custom".to_string(),
+                "openai/whisper-large-v3-turbo".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn api_profile_options_include_active_profile_first() {
+        let mut settings = crate::settings::AppSettings::default().normalized();
+        settings.active_api_profile_id = "groq".to_string();
+
+        assert_eq!(
+            api_profile_options_for_display(&settings),
+            vec!["groq".to_string(), "ai2npu".to_string()]
+        );
     }
 }

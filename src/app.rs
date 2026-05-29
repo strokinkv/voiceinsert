@@ -1,14 +1,13 @@
 #[cfg(windows)]
 use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE};
 
+use crate::api::models::load_models;
 use crate::api::transcription::AudioRequestKind;
 use crate::api::transcription::{SendAudioRequest, send_audio};
-use crate::api::{health::check_profile, models::load_models};
 use crate::audio::levels::should_stop_on_silence;
 use crate::audio::recorder::{Recorder, RecorderConfig};
 use crate::clipboard::ClipboardInserter;
 use crate::hotkeys::service::{GlobalHotkeyEvents, HotkeyAction, HotkeyEvents};
-use crate::logging::LastErrorState;
 use crate::paths::AppPaths;
 use crate::settings::{AI2NPU_DEFAULT_MODEL, ApiProfile, AppLanguage, AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
@@ -46,7 +45,8 @@ pub struct AppRuntime {
     level_rx: Option<Receiver<LevelSample>>,
     sounds: SoundService,
     clipboard: ClipboardInserter,
-    last_error: LastErrorState,
+    model_options_profile_id: Option<String>,
+    model_options: Vec<String>,
 }
 
 impl AppRuntime {
@@ -86,7 +86,7 @@ impl AppRuntime {
         let tokio = tokio::runtime::Runtime::new()?;
         let (background_tx, background_rx) = std::sync::mpsc::channel();
 
-        Ok(Self {
+        let mut runtime = Self {
             settings,
             paths,
             api_keys,
@@ -102,8 +102,11 @@ impl AppRuntime {
             level_rx: None,
             sounds,
             clipboard,
-            last_error: LastErrorState::default(),
-        })
+            model_options_profile_id: None,
+            model_options: Vec::new(),
+        };
+        runtime.queue_model_load_for_active_profile()?;
+        Ok(runtime)
     }
 
     pub fn run(self) -> anyhow::Result<()> {
@@ -124,7 +127,6 @@ impl AppRuntime {
     fn tick(&mut self) {
         if let Err(error) = self.try_tick() {
             let message = error.to_string();
-            self.last_error.set(message.clone());
             tracing::error!(%message, "runtime tick failed");
             self.state.mark_error();
             self.tray.set_state(TrayState::Error);
@@ -159,11 +161,12 @@ impl AppRuntime {
                 tracing::info!("settings command received");
                 let profile = self.settings.active_profile();
                 let logs_folder = self.paths.logs_dir().display().to_string();
+                let model_options = self.active_model_options();
                 self.ui.open_settings(
                     &self.settings,
                     api_key_for_profile(&self.api_keys, &profile.id),
                     &logs_folder,
-                    self.last_error.get().as_deref(),
+                    &model_options,
                 )?;
                 Ok(false)
             }
@@ -232,28 +235,7 @@ impl AppRuntime {
                 crate::settings::save_settings(&self.paths, &self.settings)?;
                 self.ui
                     .set_status(settings_saved_status(self.settings.ui_language));
-            }
-            UiCommand::LoadModels => {
-                let profile = self.settings.active_profile();
-                self.ui.set_status("Loading models...");
-                spawn_load_models_task(
-                    self.tokio.handle().clone(),
-                    self.http.clone(),
-                    profile.base_url.clone(),
-                    api_key_for_profile(&self.api_keys, &profile.id).to_string(),
-                    self.background_tx.clone(),
-                )?;
-            }
-            UiCommand::TestApiConnection => {
-                let profile = self.settings.active_profile();
-                self.ui.set_status("Checking API connection...");
-                spawn_health_check_task(
-                    self.tokio.handle().clone(),
-                    self.http.clone(),
-                    profile.clone(),
-                    api_key_for_profile(&self.api_keys, &profile.id).to_string(),
-                    self.background_tx.clone(),
-                )?;
+                self.queue_model_load_for_active_profile()?;
             }
             UiCommand::AddApiProfile => {
                 let new_profile = next_api_profile(&self.settings.api_profiles);
@@ -263,13 +245,15 @@ impl AppRuntime {
                 crate::settings::save_settings(&self.paths, &self.settings)?;
                 let profile = self.settings.active_profile();
                 let logs_folder = self.paths.logs_dir().display().to_string();
+                let model_options = self.active_model_options();
                 self.ui.open_settings(
                     &self.settings,
                     api_key_for_profile(&self.api_keys, &profile.id),
                     &logs_folder,
-                    self.last_error.get().as_deref(),
+                    &model_options,
                 )?;
                 self.ui.set_status("API profile added.");
+                self.queue_model_load_for_active_profile()?;
             }
             UiCommand::DeleteApiProfile => {
                 let active_profile_id = self.settings.active_api_profile_id.clone();
@@ -289,24 +273,41 @@ impl AppRuntime {
                     crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
                     let profile = self.settings.active_profile();
                     let logs_folder = self.paths.logs_dir().display().to_string();
+                    let model_options = self.active_model_options();
                     self.ui.open_settings(
                         &self.settings,
                         api_key_for_profile(&self.api_keys, &profile.id),
                         &logs_folder,
-                        self.last_error.get().as_deref(),
+                        &model_options,
                     )?;
                     self.ui.set_status("API profile deleted.");
+                    self.queue_model_load_for_active_profile()?;
                 } else {
                     self.ui.set_status("At least one API profile is required.");
                 }
             }
+            UiCommand::SelectApiProfile(profile_name) => {
+                if let Some(profile_id) = profile_id_by_name(&self.settings, &profile_name)
+                    && profile_id != self.settings.active_api_profile_id
+                {
+                    self.settings.active_api_profile_id = profile_id;
+                    self.settings = self.settings.clone().normalized();
+                    crate::settings::save_settings(&self.paths, &self.settings)?;
+                    let profile = self.settings.active_profile();
+                    let logs_folder = self.paths.logs_dir().display().to_string();
+                    let model_options = self.active_model_options();
+                    self.ui.open_settings(
+                        &self.settings,
+                        api_key_for_profile(&self.api_keys, &profile.id),
+                        &logs_folder,
+                        &model_options,
+                    )?;
+                    self.ui.set_status("API profile selected.");
+                    self.queue_model_load_for_active_profile()?;
+                }
+            }
             UiCommand::OpenLogsFolder => {
                 open_folder(&self.paths.logs_dir())?;
-            }
-            UiCommand::ClearLogs => {
-                clear_logs(&self.paths)?;
-                self.ui
-                    .set_status(logs_cleared_status(self.settings.ui_language));
             }
         }
 
@@ -326,7 +327,6 @@ impl AppRuntime {
 
         if let Err(error) = self.apply_state_command(command) {
             let message = error.to_string();
-            self.last_error.set(message.clone());
             tracing::error!(%message, "failed to handle hotkey action");
             self.state.mark_error();
             self.tray.set_state(TrayState::Error);
@@ -415,10 +415,18 @@ impl AppRuntime {
     fn process_background_events(&mut self) {
         loop {
             match self.background_rx.try_recv() {
-                Ok(BackgroundEvent::Status(message)) => self.ui.set_status(message),
-                Ok(BackgroundEvent::Error(message)) => {
-                    self.last_error.set(message.clone());
-                    self.ui.set_status(message);
+                Ok(BackgroundEvent::Error(message)) => self.ui.set_status(message),
+                Ok(BackgroundEvent::ModelsLoaded { profile_id, models }) => {
+                    if profile_id == self.settings.active_profile().id {
+                        self.model_options_profile_id = Some(profile_id);
+                        self.model_options = models;
+                        let current_model =
+                            model_for_request(&self.settings.active_profile().model);
+                        self.ui
+                            .set_model_options(current_model, &self.model_options);
+                        self.ui
+                            .set_status(models_loaded_status(self.settings.ui_language));
+                    }
                 }
                 Ok(BackgroundEvent::VoiceInsertionStarted) => {
                     self.state.mark_inserting();
@@ -430,7 +438,6 @@ impl AppRuntime {
                     self.ui.hide_overlay();
                 }
                 Ok(BackgroundEvent::VoiceInsertionComplete(Err(message))) => {
-                    self.last_error.set(message.clone());
                     tracing::error!(%message, "voice insertion task failed");
                     self.state.mark_error();
                     self.tray.set_state(TrayState::Error);
@@ -461,7 +468,6 @@ impl AppRuntime {
             let command = self.state.level_changed(sample.level, sample.delta_ms);
             if let Err(error) = self.apply_state_command(command) {
                 let message = error.to_string();
-                self.last_error.set(message.clone());
                 tracing::error!(%message, "failed to process audio level");
                 self.state.mark_error();
                 self.tray.set_state(TrayState::Error);
@@ -470,6 +476,40 @@ impl AppRuntime {
                 break;
             }
         }
+    }
+
+    fn active_model_options(&self) -> Vec<String> {
+        if self
+            .model_options_profile_id
+            .as_deref()
+            .is_some_and(|profile_id| profile_id == self.settings.active_profile().id)
+        {
+            self.model_options.clone()
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn queue_model_load_for_active_profile(&mut self) -> anyhow::Result<()> {
+        let profile = self.settings.active_profile();
+        let profile_id = profile.id.clone();
+        let base_url = profile.base_url.clone();
+        let api_key = api_key_for_profile(&self.api_keys, &profile_id).to_string();
+        let current_model = model_for_request(&profile.model).to_string();
+        self.model_options_profile_id = Some(profile_id.clone());
+        self.model_options.clear();
+        self.ui
+            .set_model_options(&current_model, &self.model_options);
+        self.ui
+            .set_status(models_loading_status(self.settings.ui_language));
+        spawn_load_models_task(
+            self.tokio.handle().clone(),
+            self.http.clone(),
+            profile_id,
+            base_url,
+            api_key,
+            self.background_tx.clone(),
+        )
     }
 }
 
@@ -481,8 +521,11 @@ struct LevelSample {
 
 #[derive(Debug)]
 enum BackgroundEvent {
-    Status(String),
     Error(String),
+    ModelsLoaded {
+        profile_id: String,
+        models: Vec<String>,
+    },
     VoiceInsertionStarted,
     VoiceInsertionComplete(Result<(), String>),
 }
@@ -548,6 +591,7 @@ fn spawn_voice_insert_task(
 fn spawn_load_models_task(
     handle: tokio::runtime::Handle,
     http: reqwest::Client,
+    profile_id: String,
     base_url: String,
     api_key: String,
     events: Sender<BackgroundEvent>,
@@ -558,37 +602,16 @@ fn spawn_load_models_task(
             let result = handle.block_on(load_models(&http, &base_url, &api_key));
             match result {
                 Ok(models) => {
-                    let _ = events.send(BackgroundEvent::Status(format!(
-                        "Loaded models: {}.",
-                        models.len()
-                    )));
+                    let model_ids = models.into_iter().map(|model| model.id).collect();
+                    let _ = events.send(BackgroundEvent::ModelsLoaded {
+                        profile_id,
+                        models: model_ids,
+                    });
                 }
                 Err(error) => {
                     let _ = events.send(BackgroundEvent::Error(error.to_string()));
                 }
             }
-        })?;
-
-    Ok(())
-}
-
-fn spawn_health_check_task(
-    handle: tokio::runtime::Handle,
-    http: reqwest::Client,
-    profile: crate::settings::ApiProfile,
-    api_key: String,
-    events: Sender<BackgroundEvent>,
-) -> anyhow::Result<()> {
-    std::thread::Builder::new()
-        .name("voiceinsert-health".to_string())
-        .spawn(move || {
-            let result = handle.block_on(check_profile(&http, &profile, &api_key));
-            let event = if result.is_healthy {
-                BackgroundEvent::Status(result.message)
-            } else {
-                BackgroundEvent::Error(result.message)
-            };
-            let _ = events.send(event);
         })?;
 
     Ok(())
@@ -691,10 +714,17 @@ fn settings_saved_status(language: AppLanguage) -> &'static str {
     }
 }
 
-fn logs_cleared_status(language: AppLanguage) -> &'static str {
+fn models_loading_status(language: AppLanguage) -> &'static str {
     match language {
-        AppLanguage::Russian => "Логи очищены.",
-        AppLanguage::English => "Logs cleared.",
+        AppLanguage::Russian => "Загрузка моделей...",
+        AppLanguage::English => "Loading models...",
+    }
+}
+
+fn models_loaded_status(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::Russian => "Модели загружены.",
+        AppLanguage::English => "Models loaded.",
     }
 }
 
@@ -725,6 +755,15 @@ fn api_key_for_profile<'a>(api_keys: &'a BTreeMap<String, String>, profile_id: &
         .unwrap_or("")
 }
 
+fn profile_id_by_name(settings: &AppSettings, profile_name: &str) -> Option<String> {
+    let profile_name = profile_name.trim();
+    settings
+        .api_profiles
+        .iter()
+        .find(|profile| profile.name == profile_name)
+        .map(|profile| profile.id.clone())
+}
+
 fn model_for_request(model: &str) -> &str {
     non_empty_str(model).unwrap_or(AI2NPU_DEFAULT_MODEL)
 }
@@ -736,23 +775,6 @@ fn non_empty_str(value: &str) -> Option<&str> {
     } else {
         Some(trimmed)
     }
-}
-
-fn clear_logs(paths: &AppPaths) -> anyhow::Result<()> {
-    let logs_dir = paths.logs_dir();
-    if !logs_dir.exists() {
-        return Ok(());
-    }
-
-    for entry in std::fs::read_dir(&logs_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_file() {
-            std::fs::remove_file(path)?;
-        }
-    }
-
-    Ok(())
 }
 
 fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {
@@ -970,11 +992,10 @@ fn acquire_single_instance(_name: &str) -> anyhow::Result<SingleInstanceGuard> {
 mod tests {
     use super::{
         OperationState, SingleInstanceGuard, StateCommand, VoiceInsertState, api_key_for_profile,
-        apply_settings_edit, clear_logs, logs_cleared_status, model_for_request,
-        settings_saved_status,
+        apply_settings_edit, model_for_request, models_loaded_status, models_loading_status,
+        profile_id_by_name, settings_saved_status,
     };
     use crate::api::transcription::AudioRequestKind;
-    use crate::paths::AppPaths;
     use crate::settings::{AppLanguage, RecordingMode};
     use crate::ui::SettingsEdit;
     use std::collections::BTreeMap;
@@ -1077,23 +1098,20 @@ mod tests {
     }
 
     #[test]
-    fn empty_model_uses_transcription_fallback() {
-        assert_eq!(model_for_request(""), "openai/whisper-large-v3-turbo");
-        assert_eq!(model_for_request(" custom-model "), "custom-model");
+    fn profile_id_lookup_uses_visible_profile_name() {
+        let settings = crate::settings::AppSettings::default().normalized();
+
+        assert_eq!(
+            profile_id_by_name(&settings, "groq"),
+            Some("groq".to_string())
+        );
+        assert_eq!(profile_id_by_name(&settings, "missing"), None);
     }
 
     #[test]
-    fn clear_logs_removes_files_in_logs_dir_only() {
-        let temp = tempfile::tempdir().unwrap();
-        let paths = AppPaths::for_test(temp.path());
-        std::fs::create_dir_all(paths.logs_dir()).unwrap();
-        let log_path = paths.logs_dir().join("voiceinsert.log");
-        std::fs::write(&log_path, "log").unwrap();
-
-        clear_logs(&paths).unwrap();
-
-        assert!(!log_path.exists());
-        assert!(paths.logs_dir().exists());
+    fn empty_model_uses_transcription_fallback() {
+        assert_eq!(model_for_request(""), "openai/whisper-large-v3-turbo");
+        assert_eq!(model_for_request(" custom-model "), "custom-model");
     }
 
     #[test]
@@ -1158,7 +1176,18 @@ mod tests {
             settings_saved_status(AppLanguage::English),
             "Settings saved."
         );
-        assert_eq!(logs_cleared_status(AppLanguage::Russian), "Логи очищены.");
-        assert_eq!(logs_cleared_status(AppLanguage::English), "Logs cleared.");
+        assert_eq!(
+            models_loading_status(AppLanguage::Russian),
+            "Загрузка моделей..."
+        );
+        assert_eq!(
+            models_loading_status(AppLanguage::English),
+            "Loading models..."
+        );
+        assert_eq!(
+            models_loaded_status(AppLanguage::Russian),
+            "Модели загружены."
+        );
+        assert_eq!(models_loaded_status(AppLanguage::English), "Models loaded.");
     }
 }

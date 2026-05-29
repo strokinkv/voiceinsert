@@ -1,3 +1,5 @@
+import { ComboBox } from "std-widgets.slint";
+
 component Label inherits Text {
     in property <string> label: "";
 
@@ -58,24 +60,28 @@ component FieldRow inherits HorizontalLayout {
     }
 }
 
-component ReadOnlyRow inherits HorizontalLayout {
-    in property <string> name: "";
-    in property <string> value: "";
+component ComboRow inherits HorizontalLayout {
+    in property <string> label: "";
+    in-out property <string> value: "";
+    in property <[string]> options: [];
+    in property <length> field-width: 360px;
+    callback selected(value: string);
 
-    height: 28px;
+    height: 34px;
     horizontal-stretch: 1;
     spacing: 14px;
 
     Label {
-        label: root.name;
-        width: 150px;
+        label: root.label;
+        horizontal-stretch: 1;
         vertical-alignment: center;
     }
 
-    ValueText {
-        label: root.value;
-        horizontal-stretch: 1;
-        vertical-alignment: center;
+    ComboBox {
+        model: root.options;
+        current-value <=> root.value;
+        width: root.field-width;
+        selected(value) => { root.selected(value); }
     }
 }
 
@@ -312,6 +318,9 @@ export component SettingsWindow inherits Window {
     in-out property <string> profile-line: "";
     in-out property <string> api-base-url: "";
     in-out property <string> model-name: "";
+    in-out property <[string]> model-options: [];
+    in-out property <string> active-profile-name: "";
+    in-out property <[string]> api-profile-options: [];
     in-out property <string> profile-name: "";
     in-out property <string> api-key: "";
     in-out property <string> language: "";
@@ -331,21 +340,18 @@ export component SettingsWindow inherits Window {
     in-out property <string> delay-before-clipboard-restore-milliseconds: "";
     in-out property <string> logs-folder: "";
     in-out property <string> log-level: "";
-    in-out property <string> last-error-line: "";
     in-out property <int> selected-page: 0;
     property <bool> is-russian: root.ui-language == "Russian";
     property <length> content-width: root.width - 290px;
 
     callback save();
     callback close();
-    callback load-models();
-    callback test-api-connection();
     callback add-api-profile();
     callback delete-api-profile();
+    callback select-api-profile(profile-name: string);
     callback change-transcription-hotkey();
     callback change-translation-hotkey();
     callback open-logs-folder();
-    callback clear-logs();
 
     title: "VoiceInsert";
     icon: @image-url("../assets/VoiceInsert.ico");
@@ -506,20 +512,19 @@ export component SettingsWindow inherits Window {
                                 TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
                             }
 
+                            ComboRow {
+                                label: root.is-russian ? "Активный профиль" : "Active profile";
+                                value <=> root.active-profile-name;
+                                options: root.api-profile-options;
+                                selected(value) => { root.select-api-profile(value); }
+                            }
                             FieldRow { label: root.is-russian ? "Имя профиля" : "Profile name"; value <=> root.profile-name; }
                             FieldRow { label: "Base URL"; value <=> root.api-base-url; }
                             FieldRow { label: "API key"; value <=> root.api-key; }
-                            FieldRow { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; }
+                            ComboRow { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; options: root.model-options; }
                             FieldRow { label: root.is-russian ? "Язык распознавания" : "Language"; value <=> root.language; }
                             FieldRow { label: root.is-russian ? "Температура" : "Temperature"; value <=> root.temperature; }
                             FieldRow { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; value <=> root.request-timeout-seconds; }
-
-                            HorizontalLayout {
-                                horizontal-stretch: 1;
-                                spacing: 10px;
-                                SmallButton { label: root.is-russian ? "Модели" : "Models"; clicked => { root.load-models(); } }
-                                SmallButton { label: root.is-russian ? "Тест" : "Test"; clicked => { root.test-api-connection(); } }
-                            }
                         }
 
                         if root.selected-page == 3: VerticalLayout {
@@ -549,8 +554,6 @@ export component SettingsWindow inherits Window {
                                     ValueText { label: root.logs-folder; horizontal-stretch: 1; vertical-alignment: center; }
                                     SmallButton { label: root.is-russian ? "Открыть" : "Open"; clicked => { root.open-logs-folder(); } }
                                 }
-                                ReadOnlyRow { name: root.is-russian ? "Последний статус" : "Last status"; value: root.status-text == "" ? (root.is-russian ? "Готово" : "Ready") : root.status-text; }
-                                ReadOnlyRow { name: root.is-russian ? "Последняя ошибка" : "Last error"; value: root.last-error-line == "" ? (root.is-russian ? "Ошибок в этой сессии нет" : "No error in this session") : root.last-error-line; }
                             }
 
                             Section {
@@ -565,11 +568,6 @@ export component SettingsWindow inherits Window {
                                 }
                             }
 
-                            HorizontalLayout {
-                                horizontal-stretch: 1;
-                                spacing: 10px;
-                                SmallButton { label: root.is-russian ? "Очистить" : "Clear"; clicked => { root.clear-logs(); } }
-                            }
                         }
                     }
                 }

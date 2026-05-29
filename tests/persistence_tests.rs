@@ -93,16 +93,13 @@ fn saving_empty_api_keys_removes_secret_file() {
 }
 
 #[test]
-fn logging_init_creates_logs_dir_and_last_error_state_roundtrips() {
+fn logging_init_creates_logs_dir() {
     let temp = tempfile::tempdir().unwrap();
     let paths = voiceinsert::paths::AppPaths::for_test(temp.path());
 
     voiceinsert::logging::init(&paths, "Debug").unwrap();
-    let errors = voiceinsert::logging::LastErrorState::default();
-    errors.set("failed");
 
     assert!(paths.logs_dir().exists());
-    assert_eq!(errors.get().as_deref(), Some("failed"));
 }
 
 #[cfg(windows)]
