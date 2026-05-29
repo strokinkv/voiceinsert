@@ -12,6 +12,7 @@ component ValueText inherits Text {
     text: label;
     color: #24312e;
     font-size: 14px;
+    overflow: elide;
 }
 
 component Field inherits Rectangle {
@@ -43,7 +44,6 @@ component FieldRow inherits HorizontalLayout {
 
     height: 34px;
     horizontal-stretch: 1;
-    preferred-width: 100%;
     spacing: 14px;
 
     Label {
@@ -64,7 +64,6 @@ component ReadOnlyRow inherits HorizontalLayout {
 
     height: 28px;
     horizontal-stretch: 1;
-    preferred-width: 100%;
     spacing: 14px;
 
     Label {
@@ -224,7 +223,6 @@ component ToggleRow inherits HorizontalLayout {
 
     height: 30px;
     horizontal-stretch: 1;
-    preferred-width: 100%;
     spacing: 12px;
 
     Text {
@@ -304,41 +302,8 @@ component SectionTitle inherits Text {
     font-weight: 700;
 }
 
-component StatusPill inherits Rectangle {
-    in property <string> label: "Ready";
-
-    width: 116px;
-    height: 28px;
-    background: #e0f3ed;
-    border-color: #a9d8ca;
-    border-width: 1px;
-    border-radius: 6px;
-
-    Rectangle {
-        x: 12px;
-        y: 10px;
-        width: 8px;
-        height: 8px;
-        background: #35a878;
-        border-radius: 4px;
-    }
-
-    Text {
-        text: root.label;
-        x: 28px;
-        y: 0;
-        width: parent.width - 36px;
-        height: parent.height;
-        color: #17604a;
-        font-size: 12px;
-        font-weight: 700;
-        vertical-alignment: center;
-    }
-}
-
 component Section inherits VerticalLayout {
     horizontal-stretch: 1;
-    preferred-width: 100%;
     spacing: 8px;
 }
 
@@ -369,6 +334,7 @@ export component SettingsWindow inherits Window {
     in-out property <string> last-error-line: "";
     in-out property <int> selected-page: 0;
     property <bool> is-russian: root.ui-language == "Russian";
+    property <length> content-width: root.width - 290px;
 
     callback save();
     callback close();
@@ -380,6 +346,9 @@ export component SettingsWindow inherits Window {
     callback change-translation-hotkey();
     callback open-logs-folder();
     callback clear-logs();
+    callback test-start-sound();
+    callback test-stop-sound();
+    callback test-error-sound();
 
     title: "VoiceInsert";
     icon: @image-url("../assets/VoiceInsert.ico");
@@ -474,14 +443,12 @@ export component SettingsWindow inherits Window {
                         vertical-alignment: center;
                         horizontal-stretch: 1;
                     }
-
-                    StatusPill { label: root.is-russian ? "Готово" : "Ready"; }
                 }
 
                 Rectangle {
                     horizontal-stretch: 1;
-                    vertical-stretch: 1;
-                    preferred-width: 100%;
+                    width: root.content-width;
+                    preferred-width: root.content-width;
                     background: #ffffff;
                     border-color: #dce6e1;
                     border-width: 1px;
@@ -493,7 +460,6 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 0: VerticalLayout {
                             horizontal-stretch: 1;
-                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
@@ -513,7 +479,6 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 1: VerticalLayout {
                             horizontal-stretch: 1;
-                            preferred-width: 100%;
                             spacing: 10px;
 
                             FieldRow { label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey"; value <=> root.transcription-hotkey; }
@@ -522,7 +487,6 @@ export component SettingsWindow inherits Window {
                             Label { label: root.is-russian ? "Режим записи" : "Recording mode"; }
                             HorizontalLayout {
                                 horizontal-stretch: 1;
-                                preferred-width: 100%;
                                 spacing: 10px;
                                 OptionButton { label: root.is-russian ? "Переключатель" : "Toggle"; selected: root.recording-mode == "Toggle"; clicked => { root.recording-mode = "Toggle"; } }
                                 OptionButton { label: root.is-russian ? "Удержание" : "Hold"; selected: root.recording-mode == "Hold"; clicked => { root.recording-mode = "Hold"; } }
@@ -536,20 +500,18 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 2: VerticalLayout {
                             horizontal-stretch: 1;
-                            preferred-width: 100%;
                             spacing: 10px;
 
                             HorizontalLayout {
                                 height: 34px;
                                 horizontal-stretch: 1;
-                                preferred-width: 100%;
                                 spacing: 8px;
-                                Label { label: root.is-russian ? "Имя профиля" : "Profile name"; horizontal-stretch: 1; vertical-alignment: center; }
-                                Field { value <=> root.profile-name; width: 360px; }
+                                SectionTitle { label: root.is-russian ? "Профиль" : "Profile"; horizontal-stretch: 1; vertical-alignment: center; }
                                 TinyButton { label: "+"; clicked => { root.add-api-profile(); } }
                                 TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
                             }
 
+                            FieldRow { label: root.is-russian ? "Имя профиля" : "Profile name"; value <=> root.profile-name; }
                             FieldRow { label: "Base URL"; value <=> root.api-base-url; }
                             FieldRow { label: "API key"; value <=> root.api-key; }
                             FieldRow { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; }
@@ -559,7 +521,6 @@ export component SettingsWindow inherits Window {
 
                             HorizontalLayout {
                                 horizontal-stretch: 1;
-                                preferred-width: 100%;
                                 spacing: 10px;
                                 SmallButton { label: root.is-russian ? "Модели" : "Models"; clicked => { root.load-models(); } }
                                 SmallButton { label: root.is-russian ? "Тест" : "Test"; clicked => { root.test-api-connection(); } }
@@ -568,7 +529,6 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 3: VerticalLayout {
                             horizontal-stretch: 1;
-                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
@@ -583,35 +543,52 @@ export component SettingsWindow inherits Window {
 
                         if root.selected-page == 4: VerticalLayout {
                             horizontal-stretch: 1;
-                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
                                 SectionTitle { label: root.is-russian ? "События" : "Events"; }
                                 ToggleRow { label: root.is-russian ? "Включить звуки" : "Enable sounds"; checked <=> root.enable-sounds; }
-                                ReadOnlyRow { name: root.is-russian ? "Начало записи" : "Record start"; value: root.enable-sounds ? (root.is-russian ? "Включено" : "Enabled") : (root.is-russian ? "Выключено" : "Disabled"); }
-                                ReadOnlyRow { name: root.is-russian ? "Остановка записи" : "Record stop"; value: root.enable-sounds ? (root.is-russian ? "Включено" : "Enabled") : (root.is-russian ? "Выключено" : "Disabled"); }
-                                ReadOnlyRow { name: root.is-russian ? "Ошибка" : "Error"; value: root.enable-sounds ? (root.is-russian ? "Включено" : "Enabled") : (root.is-russian ? "Выключено" : "Disabled"); }
-                            }
-
-                            HorizontalLayout {
-                                horizontal-stretch: 1;
-                                preferred-width: 100%;
-                                spacing: 10px;
-                                SmallButton { label: root.is-russian ? "Старт" : "Start"; }
-                                SmallButton { label: root.is-russian ? "Стоп" : "Stop"; }
-                                SmallButton { label: root.is-russian ? "Ошибка" : "Error"; }
+                                HorizontalLayout {
+                                    height: 34px;
+                                    horizontal-stretch: 1;
+                                    spacing: 14px;
+                                    Label { label: root.is-russian ? "Начало записи" : "Record start"; width: 150px; vertical-alignment: center; }
+                                    ValueText { label: root.enable-sounds ? (root.is-russian ? "Включено" : "Enabled") : (root.is-russian ? "Выключено" : "Disabled"); horizontal-stretch: 1; vertical-alignment: center; }
+                                    SmallButton { label: "▶"; clicked => { root.test-start-sound(); } }
+                                }
+                                HorizontalLayout {
+                                    height: 34px;
+                                    horizontal-stretch: 1;
+                                    spacing: 14px;
+                                    Label { label: root.is-russian ? "Остановка записи" : "Record stop"; width: 150px; vertical-alignment: center; }
+                                    ValueText { label: root.enable-sounds ? (root.is-russian ? "Включено" : "Enabled") : (root.is-russian ? "Выключено" : "Disabled"); horizontal-stretch: 1; vertical-alignment: center; }
+                                    SmallButton { label: "▶"; clicked => { root.test-stop-sound(); } }
+                                }
+                                HorizontalLayout {
+                                    height: 34px;
+                                    horizontal-stretch: 1;
+                                    spacing: 14px;
+                                    Label { label: root.is-russian ? "Ошибка" : "Error"; width: 150px; vertical-alignment: center; }
+                                    ValueText { label: root.enable-sounds ? (root.is-russian ? "Включено" : "Enabled") : (root.is-russian ? "Выключено" : "Disabled"); horizontal-stretch: 1; vertical-alignment: center; }
+                                    SmallButton { label: "▶"; clicked => { root.test-error-sound(); } }
+                                }
                             }
                         }
 
                         if root.selected-page == 5: VerticalLayout {
                             horizontal-stretch: 1;
-                            preferred-width: 100%;
                             spacing: 12px;
 
                             Section {
                                 SectionTitle { label: root.is-russian ? "Диагностика" : "Diagnostics"; }
-                                ReadOnlyRow { name: root.is-russian ? "Папка логов" : "Logs folder"; value: root.logs-folder; }
+                                HorizontalLayout {
+                                    height: 34px;
+                                    horizontal-stretch: 1;
+                                    spacing: 14px;
+                                    Label { label: root.is-russian ? "Папка логов" : "Logs folder"; width: 150px; vertical-alignment: center; }
+                                    ValueText { label: root.logs-folder; horizontal-stretch: 1; vertical-alignment: center; }
+                                    SmallButton { label: root.is-russian ? "Открыть" : "Open"; clicked => { root.open-logs-folder(); } }
+                                }
                                 ReadOnlyRow { name: root.is-russian ? "Последний статус" : "Last status"; value: root.status-text == "" ? (root.is-russian ? "Готово" : "Ready") : root.status-text; }
                                 ReadOnlyRow { name: root.is-russian ? "Последняя ошибка" : "Last error"; value: root.last-error-line == "" ? (root.is-russian ? "Ошибок в этой сессии нет" : "No error in this session") : root.last-error-line; }
                             }
@@ -620,7 +597,6 @@ export component SettingsWindow inherits Window {
                                 SectionTitle { label: root.is-russian ? "Уровень логов" : "Log level"; }
                                 HorizontalLayout {
                                     horizontal-stretch: 1;
-                                    preferred-width: 100%;
                                     spacing: 10px;
                                     OptionButton { label: root.is-russian ? "Инфо" : "Information"; selected: root.log-level == "Information"; clicked => { root.log-level = "Information"; } }
                                     OptionButton { label: root.is-russian ? "Отладка" : "Debug"; selected: root.log-level == "Debug"; clicked => { root.log-level = "Debug"; } }
@@ -631,9 +607,7 @@ export component SettingsWindow inherits Window {
 
                             HorizontalLayout {
                                 horizontal-stretch: 1;
-                                preferred-width: 100%;
                                 spacing: 10px;
-                                SmallButton { label: root.is-russian ? "Открыть" : "Open"; clicked => { root.open-logs-folder(); } }
                                 SmallButton { label: root.is-russian ? "Очистить" : "Clear"; clicked => { root.clear-logs(); } }
                             }
                         }

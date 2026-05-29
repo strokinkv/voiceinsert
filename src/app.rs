@@ -308,6 +308,21 @@ impl AppRuntime {
                 self.ui
                     .set_status(logs_cleared_status(self.settings.ui_language));
             }
+            UiCommand::TestStartSound => {
+                play_test_sound(SoundKind::Start)?;
+                self.ui
+                    .set_status(sound_test_status(self.settings.ui_language));
+            }
+            UiCommand::TestStopSound => {
+                play_test_sound(SoundKind::Stop)?;
+                self.ui
+                    .set_status(sound_test_status(self.settings.ui_language));
+            }
+            UiCommand::TestErrorSound => {
+                play_test_sound(SoundKind::Error)?;
+                self.ui
+                    .set_status(sound_test_status(self.settings.ui_language));
+            }
         }
 
         Ok(())
@@ -698,6 +713,17 @@ fn logs_cleared_status(language: AppLanguage) -> &'static str {
     }
 }
 
+fn sound_test_status(language: AppLanguage) -> &'static str {
+    match language {
+        AppLanguage::Russian => "Тестовый звук воспроизведён.",
+        AppLanguage::English => "Test sound played.",
+    }
+}
+
+fn play_test_sound(kind: SoundKind) -> anyhow::Result<()> {
+    SoundService { enabled: true }.play(kind)
+}
+
 fn next_api_profile(existing: &[ApiProfile]) -> ApiProfile {
     let mut index = existing.len() + 1;
     loop {
@@ -971,7 +997,7 @@ mod tests {
     use super::{
         OperationState, SingleInstanceGuard, StateCommand, VoiceInsertState, api_key_for_profile,
         apply_settings_edit, clear_logs, logs_cleared_status, model_for_request,
-        settings_saved_status,
+        settings_saved_status, sound_test_status,
     };
     use crate::api::transcription::AudioRequestKind;
     use crate::paths::AppPaths;
@@ -1160,5 +1186,13 @@ mod tests {
         );
         assert_eq!(logs_cleared_status(AppLanguage::Russian), "Логи очищены.");
         assert_eq!(logs_cleared_status(AppLanguage::English), "Logs cleared.");
+        assert_eq!(
+            sound_test_status(AppLanguage::Russian),
+            "Тестовый звук воспроизведён."
+        );
+        assert_eq!(
+            sound_test_status(AppLanguage::English),
+            "Test sound played."
+        );
     }
 }

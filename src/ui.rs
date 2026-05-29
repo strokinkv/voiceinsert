@@ -13,6 +13,9 @@ pub enum UiCommand {
     DeleteApiProfile,
     OpenLogsFolder,
     ClearLogs,
+    TestStartSound,
+    TestStopSound,
+    TestErrorSound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -302,8 +305,23 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
         let _ = tx.send(UiCommand::OpenLogsFolder);
     });
 
+    let tx = command_tx.clone();
     window.on_clear_logs(move || {
-        let _ = command_tx.send(UiCommand::ClearLogs);
+        let _ = tx.send(UiCommand::ClearLogs);
+    });
+
+    let tx = command_tx.clone();
+    window.on_test_start_sound(move || {
+        let _ = tx.send(UiCommand::TestStartSound);
+    });
+
+    let tx = command_tx.clone();
+    window.on_test_stop_sound(move || {
+        let _ = tx.send(UiCommand::TestStopSound);
+    });
+
+    window.on_test_error_sound(move || {
+        let _ = command_tx.send(UiCommand::TestErrorSound);
     });
 }
 
