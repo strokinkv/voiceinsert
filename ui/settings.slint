@@ -42,6 +42,7 @@ component FieldRow inherits HorizontalLayout {
     in property <length> field-width: 360px;
 
     height: 34px;
+    horizontal-stretch: 1;
     spacing: 14px;
 
     Label {
@@ -61,6 +62,7 @@ component ReadOnlyRow inherits HorizontalLayout {
     in property <string> value: "";
 
     height: 28px;
+    horizontal-stretch: 1;
     spacing: 14px;
 
     Label {
@@ -219,6 +221,7 @@ component ToggleRow inherits HorizontalLayout {
     in-out property <bool> checked: false;
 
     height: 30px;
+    horizontal-stretch: 1;
     spacing: 12px;
 
     Text {
@@ -331,6 +334,7 @@ component StatusPill inherits Rectangle {
 }
 
 component Section inherits VerticalLayout {
+    horizontal-stretch: 1;
     spacing: 8px;
 }
 
@@ -514,9 +518,9 @@ export component SettingsWindow inherits Window {
                                 OptionButton { label: root.is-russian ? "Тишина" : "Silence"; selected: root.recording-mode == "SilenceTimeout"; clicked => { root.recording-mode = "SilenceTimeout"; } }
                             }
 
-                            FieldRow { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; value <=> root.silence-threshold-percent; field-width: 160px; }
-                            FieldRow { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; value <=> root.silence-timeout-milliseconds; field-width: 160px; }
-                            FieldRow { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; value <=> root.max-recording-seconds; field-width: 160px; }
+                            FieldRow { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; value <=> root.silence-threshold-percent; }
+                            FieldRow { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; value <=> root.silence-timeout-milliseconds; }
+                            FieldRow { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; value <=> root.max-recording-seconds; }
                         }
 
                         if root.selected-page == 2: VerticalLayout {
@@ -534,9 +538,9 @@ export component SettingsWindow inherits Window {
                             FieldRow { label: "Base URL"; value <=> root.api-base-url; }
                             FieldRow { label: "API key"; value <=> root.api-key; }
                             FieldRow { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; }
-                            FieldRow { label: root.is-russian ? "Язык распознавания" : "Language"; value <=> root.language; field-width: 160px; }
-                            FieldRow { label: root.is-russian ? "Температура" : "Temperature"; value <=> root.temperature; field-width: 160px; }
-                            FieldRow { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; value <=> root.request-timeout-seconds; field-width: 160px; }
+                            FieldRow { label: root.is-russian ? "Язык распознавания" : "Language"; value <=> root.language; }
+                            FieldRow { label: root.is-russian ? "Температура" : "Temperature"; value <=> root.temperature; }
+                            FieldRow { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; value <=> root.request-timeout-seconds; }
 
                             HorizontalLayout {
                                 spacing: 10px;
@@ -554,8 +558,8 @@ export component SettingsWindow inherits Window {
                                 ToggleRow { label: root.is-russian ? "Восстанавливать прежнее содержимое буфера" : "Restore previous clipboard content"; checked <=> root.restore-clipboard-content; }
                             }
 
-                            FieldRow { label: root.is-russian ? "Задержка перед вставкой, мс" : "Delay before paste, ms"; value <=> root.delay-before-paste-milliseconds; field-width: 160px; }
-                            FieldRow { label: root.is-russian ? "Задержка перед восстановлением, мс" : "Delay before restore, ms"; value <=> root.delay-before-clipboard-restore-milliseconds; field-width: 160px; }
+                            FieldRow { label: root.is-russian ? "Задержка перед вставкой, мс" : "Delay before paste, ms"; value <=> root.delay-before-paste-milliseconds; }
+                            FieldRow { label: root.is-russian ? "Задержка перед восстановлением, мс" : "Delay before restore, ms"; value <=> root.delay-before-clipboard-restore-milliseconds; }
                         }
 
                         if root.selected-page == 4: VerticalLayout {
