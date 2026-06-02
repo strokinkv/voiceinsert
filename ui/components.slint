@@ -1,0 +1,402 @@
+import { ComboBox } from "std-widgets.slint";
+
+export component Label inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #66746e;
+    font-size: 13px;
+}
+
+export component ValueText inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #24312e;
+    font-size: 14px;
+    overflow: elide;
+}
+
+export component Field inherits Rectangle {
+    in-out property <string> value: "";
+    callback edited();
+
+    height: 34px;
+    background: #ffffff;
+    border-color: #c8d4ce;
+    border-width: 1px;
+    border-radius: 6px;
+
+    TextInput {
+        text <=> root.value;
+        x: 12px;
+        y: 0;
+        width: parent.width - 24px;
+        height: parent.height;
+        color: #1f2a28;
+        font-size: 14px;
+        vertical-alignment: center;
+        single-line: true;
+        edited => { root.edited(); }
+    }
+}
+
+export component FieldRow inherits HorizontalLayout {
+    in property <string> label: "";
+    in-out property <string> value: "";
+    in property <length> field-width: 360px;
+    callback edited();
+
+    height: 34px;
+    horizontal-stretch: 1;
+    spacing: 14px;
+
+    Label {
+        label: root.label;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+    }
+
+    Field {
+        value <=> root.value;
+        width: root.field-width;
+        edited => { root.edited(); }
+    }
+}
+
+export component ComboRow inherits HorizontalLayout {
+    in property <string> label: "";
+    in-out property <string> value: "";
+    in property <[string]> options: [];
+    in property <length> field-width: 360px;
+    callback selected(value: string);
+
+    height: 34px;
+    horizontal-stretch: 1;
+    spacing: 14px;
+
+    Label {
+        label: root.label;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+    }
+
+    ComboBox {
+        model: root.options;
+        current-value <=> root.value;
+        width: root.field-width;
+        selected(value) => {
+            root.value = value;
+            root.selected(value);
+        }
+    }
+}
+
+export component NavItem inherits Rectangle {
+    in property <string> label: "";
+    in property <string> mark: "";
+    in property <bool> selected: false;
+    callback clicked();
+
+    height: 36px;
+    background: selected ? #dceee9 : transparent;
+    border-radius: 6px;
+
+    Rectangle {
+        x: 0;
+        y: 6px;
+        width: 3px;
+        height: 24px;
+        background: root.selected ? #51b3a2 : transparent;
+        border-radius: 2px;
+    }
+
+    Rectangle {
+        x: 14px;
+        y: 7px;
+        width: 22px;
+        height: 22px;
+        background: root.selected ? #51b3a2 : #d6e1dc;
+        border-radius: 5px;
+
+        Text {
+            text: root.mark;
+            color: root.selected ? #ffffff : #50615c;
+            font-size: 10px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        text: root.label;
+        color: selected ? #1f2a28 : #61716b;
+        font-size: 13px;
+        font-weight: selected ? 700 : 400;
+        x: 48px;
+        y: 0;
+        width: parent.width - 58px;
+        height: parent.height;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component SmallButton inherits Rectangle {
+    in property <string> label: "";
+    callback clicked();
+
+    width: 104px;
+    height: 34px;
+    background: touch.pressed ? #d5e5df : touch.has-hover ? #edf5f2 : #ffffff;
+    border-color: #c8d4ce;
+    border-width: 1px;
+    border-radius: 6px;
+
+    Text {
+        text: root.label;
+        color: #1f2a28;
+        font-size: 13px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component TinyButton inherits Rectangle {
+    in property <string> label: "";
+    callback clicked();
+
+    width: 34px;
+    height: 34px;
+    background: touch.pressed ? #d5e5df : touch.has-hover ? #edf5f2 : #ffffff;
+    border-color: #c8d4ce;
+    border-width: 1px;
+    border-radius: 6px;
+
+    Text {
+        text: root.label;
+        color: #1f2a28;
+        font-size: 16px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component ToggleRow inherits HorizontalLayout {
+    in property <string> label: "";
+    in-out property <bool> checked: false;
+    callback toggled();
+
+    height: 30px;
+    horizontal-stretch: 1;
+    spacing: 12px;
+
+    Text {
+        text: root.label;
+        color: #66746e;
+        font-size: 13px;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        width: 48px;
+        height: 26px;
+        background: root.checked ? #51b3a2 : #d7e1dc;
+        border-radius: 6px;
+
+        Rectangle {
+            x: root.checked ? 24px : 4px;
+            y: 4px;
+            width: 18px;
+            height: 18px;
+            background: #ffffff;
+            border-radius: 5px;
+        }
+
+        TouchArea {
+            width: parent.width;
+            height: parent.height;
+            clicked => {
+                root.checked = !root.checked;
+                root.toggled();
+            }
+        }
+    }
+}
+
+export component OptionButton inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> selected: false;
+    callback clicked();
+
+    height: 32px;
+    horizontal-stretch: 1;
+    background: selected ? #dceee9 : #ffffff;
+    border-color: selected ? #90cbbd : #c8d4ce;
+    border-width: 1px;
+    border-radius: 6px;
+
+    Text {
+        text: root.label;
+        color: selected ? #163f36 : #50615c;
+        font-size: 13px;
+        font-weight: selected ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component PageTitle inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #1f2a28;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+export component SectionTitle inherits Text {
+    in property <string> label: "";
+
+    text: label;
+    color: #1f2a28;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+export component Section inherits VerticalLayout {
+    horizontal-stretch: 1;
+    spacing: 8px;
+}
+
+export component HintLabel inherits HorizontalLayout {
+    in property <string> label: "";
+    in property <string> hint: "";
+
+    height: 18px;
+    spacing: 6px;
+
+    Label {
+        label: root.label;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        visible: root.hint != "";
+        width: 16px;
+        height: 16px;
+        background: hint-touch.has-hover ? #dbe7f5 : #eef3f8;
+        border-color: #b8c7d8;
+        border-width: 1px;
+        border-radius: 8px;
+
+        Text {
+            text: "?";
+            color: #516579;
+            font-size: 10px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        hint-touch := TouchArea { width: parent.width; height: parent.height; }
+    }
+}
+
+export component VerticalField inherits VerticalLayout {
+    in property <string> label: "";
+    in property <string> hint: "";
+    in-out property <string> value: "";
+    callback edited();
+
+    spacing: 5px;
+    height: 57px;
+
+    HintLabel { label: root.label; hint: root.hint; }
+    Field {
+        value <=> root.value;
+        horizontal-stretch: 1;
+        edited => { root.edited(); }
+    }
+}
+
+export component VerticalCombo inherits VerticalLayout {
+    in property <string> label: "";
+    in property <string> hint: "";
+    in-out property <string> value: "";
+    in property <[string]> options: [];
+    callback selected(value: string);
+
+    spacing: 5px;
+    height: 57px;
+
+    HintLabel { label: root.label; hint: root.hint; }
+    ComboBox {
+        model: root.options;
+        current-value <=> root.value;
+        horizontal-stretch: 1;
+        selected(value) => {
+            root.value = value;
+            root.selected(value);
+        }
+    }
+}
+
+export component SettingsCard inherits Rectangle {
+    background: #ffffff;
+    border-color: #d8e0ea;
+    border-width: 1px;
+    border-radius: 8px;
+}
+
+export component Toast inherits Rectangle {
+    in property <string> message: "";
+
+    visible: root.message != "";
+    width: 420px;
+    height: 54px;
+    background: #fff6f2;
+    border-color: #e2ad9b;
+    border-width: 1px;
+    border-radius: 8px;
+
+    Text {
+        text: root.message;
+        x: 14px;
+        y: 8px;
+        width: parent.width - 28px;
+        height: parent.height - 16px;
+        color: #77402f;
+        font-size: 12px;
+        wrap: word-wrap;
+        vertical-alignment: center;
+    }
+}
