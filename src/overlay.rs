@@ -1,104 +1,95 @@
-use std::collections::VecDeque;
-
-const MAX_WAVEFORM_POINTS: usize = 96;
-
+/// Desktop work area available for positioning transient overlay windows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverlayStatus {
-    Recording,
-    Transcribing,
-    Inserting,
-    Error,
+pub struct WorkArea {
+    pub left: i32,
+    pub top: i32,
+    pub width: i32,
+    pub height: i32,
 }
 
-#[derive(Debug, Clone)]
-pub struct OverlayState {
-    visible: bool,
-    status: OverlayStatus,
-    level: f32,
-    is_silent: bool,
-    waveform: VecDeque<f32>,
+/// Returns the primary monitor work area, excluding the taskbar when the platform reports it.
+pub fn primary_work_area() -> WorkArea {
+    platform_work_area().unwrap_or_else(default_work_area)
 }
 
-impl Default for OverlayState {
-    fn default() -> Self {
-        Self {
-            visible: false,
-            status: OverlayStatus::Recording,
-            level: 0.0,
-            is_silent: false,
-            waveform: VecDeque::with_capacity(MAX_WAVEFORM_POINTS),
+/// Calculates a bottom-right overlay position clamped inside the supplied work area.
+pub fn overlay_position(work_area: WorkArea, overlay_size: (i32, i32), margin: i32) -> (i32, i32) {
+    let (overlay_width, overlay_height) = overlay_size;
+    let margin = margin.max(0);
+    let x = (work_area.left + work_area.width - overlay_width - margin).max(work_area.left);
+    let y = (work_area.top + work_area.height - overlay_height - margin).max(work_area.top);
+    (x, y)
+}
+
+#[cfg(windows)]
+fn platform_work_area() -> Option<WorkArea> {
+    use std::ffi::c_void;
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
+    };
+
+    let mut rect = RECT::default();
+    let ok = unsafe {
+        SystemParametersInfoW(
+            SPI_GETWORKAREA,
+            0,
+            Some((&mut rect as *mut RECT).cast::<c_void>()),
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+        )
+    };
+
+    ok.is_ok().then_some(WorkArea {
+        left: rect.left,
+        top: rect.top,
+        width: rect.right.saturating_sub(rect.left),
+        height: rect.bottom.saturating_sub(rect.top),
+    })
+}
+
+#[cfg(not(windows))]
+fn platform_work_area() -> Option<WorkArea> {
+    None
+}
+
+#[cfg(windows)]
+fn default_work_area() -> WorkArea {
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+
+    unsafe {
+        WorkArea {
+            left: 0,
+            top: 0,
+            width: GetSystemMetrics(SM_CXSCREEN),
+            height: GetSystemMetrics(SM_CYSCREEN),
         }
     }
 }
 
-impl OverlayState {
-    pub fn show_recording(&mut self) {
-        self.visible = true;
-        self.status = OverlayStatus::Recording;
-        self.reset_waveform();
-    }
-
-    pub fn set_level(&mut self, level: f32, silence_threshold: f32) {
-        self.level = level.clamp(0.0, 1.0);
-        self.is_silent = self.level <= silence_threshold.clamp(0.0, 1.0);
-        if self.waveform.len() == MAX_WAVEFORM_POINTS {
-            self.waveform.pop_front();
-        }
-        self.waveform.push_back(self.level);
-    }
-
-    pub fn set_status(&mut self, status: OverlayStatus) {
-        self.status = status;
-    }
-
-    pub fn hide(&mut self) {
-        self.visible = false;
-    }
-
-    pub fn reset_waveform(&mut self) {
-        self.level = 0.0;
-        self.is_silent = false;
-        self.waveform.clear();
-    }
-
-    pub fn visible(&self) -> bool {
-        self.visible
-    }
-
-    pub fn status(&self) -> OverlayStatus {
-        self.status
-    }
-
-    pub fn waveform(&self) -> &VecDeque<f32> {
-        &self.waveform
+#[cfg(not(windows))]
+fn default_work_area() -> WorkArea {
+    WorkArea {
+        left: 0,
+        top: 0,
+        width: 1280,
+        height: 720,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_WAVEFORM_POINTS, OverlayState, OverlayStatus};
+    use super::{WorkArea, overlay_position};
 
     #[test]
-    fn show_recording_resets_waveform() {
-        let mut overlay = OverlayState::default();
-        overlay.set_level(0.8, 0.1);
-        overlay.set_status(OverlayStatus::Error);
+    fn overlay_position_stays_within_work_area() {
+        let work_area = WorkArea {
+            left: 100,
+            top: 50,
+            width: 800,
+            height: 600,
+        };
 
-        overlay.show_recording();
-
-        assert!(overlay.visible());
-        assert_eq!(overlay.status(), OverlayStatus::Recording);
-        assert!(overlay.waveform().is_empty());
-    }
-
-    #[test]
-    fn waveform_keeps_latest_points() {
-        let mut overlay = OverlayState::default();
-
-        for _ in 0..(MAX_WAVEFORM_POINTS + 8) {
-            overlay.set_level(0.5, 0.1);
-        }
-
-        assert_eq!(overlay.waveform().len(), MAX_WAVEFORM_POINTS);
+        assert_eq!(overlay_position(work_area, (240, 120), 24), (636, 506));
+        assert_eq!(overlay_position(work_area, (900, 700), 24), (100, 50));
     }
 }

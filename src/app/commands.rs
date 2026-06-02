@@ -11,6 +11,7 @@ impl AppRuntime {
         match command {
             UiCommand::SettingsChanged => match self.save_settings_from_ui() {
                 Ok(models_source_changed) => {
+                    self.ui.set_status("");
                     if models_source_changed {
                         self.queue_model_load_for_active_profile()?;
                     }
