@@ -2,6 +2,7 @@ use crate::api::endpoints::endpoint;
 use serde::Deserialize;
 
 pub const AUDIO_RESPONSE_FORMAT: &str = "json";
+pub const DEFAULT_INPUT_LANGUAGE: &str = "ru";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AudioRequestKind {
@@ -97,11 +98,18 @@ pub async fn send_audio(
         .text("model", audio.model.to_string())
         .text("response_format", AUDIO_RESPONSE_FORMAT);
 
-    if audio.kind == AudioRequestKind::Transcription
-        && let Some(language) = audio.language.filter(|value| !value.trim().is_empty())
-    {
-        form = form.text("language", language.to_string());
-    }
+    let language = audio
+        .language
+        .and_then(|value| {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        })
+        .unwrap_or(DEFAULT_INPUT_LANGUAGE);
+    form = form.text("language", language.to_string());
 
     if let Some(temperature) = audio.temperature {
         form = form.text("temperature", temperature.to_string());
