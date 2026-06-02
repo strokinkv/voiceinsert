@@ -27,8 +27,9 @@ export component SettingsWindow inherits Window {
     in-out property <string> delay-before-clipboard-restore-milliseconds: "";
     in-out property <string> log-level: "";
     property <bool> is-russian: root.ui-language == "Russian";
-    property <[string]> recording-mode-options: root.is-russian ? ["Переключатель", "Удержание", "Тишина"] : ["Toggle", "Hold", "SilenceTimeout"];
-    property <[string]> log-level-options: root.is-russian ? ["Инфо", "Отладка", "Предупреждения", "Ошибки"] : ["Information", "Debug", "Warning", "Error"];
+    in-out property <[string]> recording-mode-options: [];
+    in-out property <[string]> ui-language-options: [];
+    in-out property <[string]> log-level-options: [];
 
     callback settings-changed();
     callback add-api-profile();
@@ -128,7 +129,7 @@ export component SettingsWindow inherits Window {
                 VerticalCombo {
                     label: root.is-russian ? "Язык интерфейса" : "Interface language";
                     value <=> root.ui-language;
-                    options: ["Russian", "English"];
+                    options: root.ui-language-options;
                     selected(value) => { root.ui-language = value; root.settings-changed(); }
                 }
             }

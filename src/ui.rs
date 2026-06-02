@@ -81,17 +81,20 @@ impl UiController {
         window.set_profile_name(SharedString::from(profile.name.as_str()));
         window.set_api_base_url(SharedString::from(profile.base_url.as_str()));
         window.set_api_key(SharedString::from(api_key));
-        window.set_model_name(SharedString::from(model_name.as_str()));
         window.set_model_options(shared_string_model(&model_options_for_display(
             &model_name,
             model_options,
         )));
+        window.set_model_name(SharedString::from(model_name.as_str()));
         window.set_temperature(SharedString::from(format!("{:.1}", profile.temperature)));
         window.set_request_timeout_seconds(SharedString::from(
             profile.request_timeout_seconds.to_string(),
         ));
         window.set_transcription_hotkey(SharedString::from(settings.hotkey.as_str()));
         window.set_translation_hotkey(SharedString::from(settings.translation_hotkey.as_str()));
+        window.set_recording_mode_options(shared_string_model(
+            &recording_mode_options_for_display(settings.recording_mode, settings.ui_language),
+        ));
         window.set_recording_mode(SharedString::from(recording_mode_display_label(
             settings.recording_mode,
             settings.ui_language,
@@ -106,6 +109,9 @@ impl UiController {
             settings.max_recording_seconds.to_string(),
         ));
         window.set_start_with_windows(settings.start_with_windows);
+        window.set_ui_language_options(shared_string_model(&language_options_for_display(
+            settings.ui_language,
+        )));
         window.set_ui_language(SharedString::from(language_label(settings.ui_language)));
         window.set_enable_sounds(settings.enable_sounds);
         window.set_restore_clipboard_content(settings.restore_clipboard_content);
@@ -117,6 +123,10 @@ impl UiController {
                 .delay_before_clipboard_restore_milliseconds
                 .to_string(),
         ));
+        window.set_log_level_options(shared_string_model(&log_level_options_for_display(
+            &settings.log_level,
+            settings.ui_language,
+        )));
         window.set_log_level(SharedString::from(log_level_display_label(
             &settings.log_level,
             settings.ui_language,
@@ -287,6 +297,40 @@ fn api_profile_options_for_display(settings: &AppSettings) -> Vec<String> {
     values
 }
 
+fn recording_mode_options_for_display(mode: RecordingMode, language: AppLanguage) -> Vec<String> {
+    current_first(
+        recording_mode_display_label(mode, language),
+        match language {
+            AppLanguage::Russian => &["Переключатель", "Удержание", "Тишина"],
+            AppLanguage::English => &["Toggle", "Hold", "SilenceTimeout"],
+        },
+    )
+}
+
+fn log_level_options_for_display(level: &str, language: AppLanguage) -> Vec<String> {
+    current_first(
+        log_level_display_label(level, language),
+        match language {
+            AppLanguage::Russian => &["Инфо", "Отладка", "Предупреждения", "Ошибки"],
+            AppLanguage::English => &["Information", "Debug", "Warning", "Error"],
+        },
+    )
+}
+
+fn language_options_for_display(language: AppLanguage) -> Vec<String> {
+    current_first(language_label(language), &["Russian", "English"])
+}
+
+fn current_first(current: &str, options: &[&str]) -> Vec<String> {
+    let mut values = vec![current.to_string()];
+    for option in options {
+        if !values.iter().any(|value| value == option) {
+            values.push((*option).to_string());
+        }
+    }
+    values
+}
+
 fn shared_string_model(values: &[String]) -> ModelRc<SharedString> {
     let rows = values
         .iter()
@@ -369,7 +413,12 @@ fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand
 
 #[cfg(test)]
 mod tests {
-    use super::{api_profile_options_for_display, model_label, model_options_for_display};
+    use super::{
+        api_profile_options_for_display, language_options_for_display,
+        log_level_options_for_display, model_label, model_options_for_display,
+        recording_mode_options_for_display,
+    };
+    use crate::settings::{AppLanguage, RecordingMode};
 
     #[test]
     fn empty_model_label_uses_default_transcription_model() {
@@ -402,6 +451,30 @@ mod tests {
         assert_eq!(
             api_profile_options_for_display(&settings),
             vec!["groq".to_string(), "ai2npu".to_string()]
+        );
+    }
+
+    #[test]
+    fn recording_mode_options_include_current_mode_first() {
+        assert_eq!(
+            recording_mode_options_for_display(RecordingMode::Hold, AppLanguage::Russian)[0],
+            "Удержание"
+        );
+    }
+
+    #[test]
+    fn log_level_options_include_current_level_first() {
+        assert_eq!(
+            log_level_options_for_display("Debug", AppLanguage::Russian)[0],
+            "Отладка"
+        );
+    }
+
+    #[test]
+    fn language_options_include_current_language_first() {
+        assert_eq!(
+            language_options_for_display(AppLanguage::English)[0],
+            "English"
         );
     }
 }
