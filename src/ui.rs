@@ -1,7 +1,10 @@
 slint::include_modules!();
 
+use crate::overlay::{overlay_position, primary_work_area};
 use crate::settings::{AI2NPU_DEFAULT_MODEL, AppLanguage, AppSettings, RecordingMode};
-use slint::{ComponentHandle, ModelRc, PhysicalPosition, SharedString, VecModel};
+use slint::{
+    CloseRequestResponse, ComponentHandle, ModelRc, PhysicalPosition, SharedString, VecModel,
+};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +22,6 @@ pub struct SettingsEdit {
     pub base_url: String,
     pub api_key: String,
     pub model: String,
-    pub language: String,
     pub temperature: String,
     pub request_timeout_seconds: String,
     pub transcription_hotkey: String,
@@ -86,7 +88,6 @@ impl UiController {
             &model_name,
             model_options,
         )));
-        window.set_language(SharedString::from(profile.language.as_str()));
         window.set_temperature(SharedString::from(format!("{:.1}", profile.temperature)));
         window.set_request_timeout_seconds(SharedString::from(
             profile.request_timeout_seconds.to_string(),
@@ -207,7 +208,6 @@ impl UiController {
             base_url: window.get_api_base_url().to_string(),
             api_key: window.get_api_key().to_string(),
             model: window.get_model_name().to_string(),
-            language: window.get_language().to_string(),
             temperature: window.get_temperature().to_string(),
             request_timeout_seconds: window.get_request_timeout_seconds().to_string(),
             transcription_hotkey: window.get_transcription_hotkey().to_string(),
@@ -243,26 +243,11 @@ impl UiController {
 }
 
 fn position_overlay_near_clock(overlay: &RecordingOverlay) {
-    let (screen_width, screen_height) = screen_size();
     let width = overlay.window().size().width as i32;
     let height = overlay.window().size().height as i32;
-    let margin = 24;
-    let taskbar_margin = 56;
-    let x = (screen_width - width - margin).max(0);
-    let y = (screen_height - height - taskbar_margin).max(0);
+    let work_area = primary_work_area();
+    let (x, y) = overlay_position(work_area, (width, height), 24);
     overlay.window().set_position(PhysicalPosition::new(x, y));
-}
-
-#[cfg(windows)]
-fn screen_size() -> (i32, i32) {
-    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
-
-    unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
-}
-
-#[cfg(not(windows))]
-fn screen_size() -> (i32, i32) {
-    (1280, 720)
 }
 
 fn model_label(model: &str) -> &str {
@@ -332,6 +317,14 @@ impl Default for UiController {
 }
 
 fn wire_settings_callbacks(window: &SettingsWindow, command_tx: Sender<UiCommand>) {
+    let weak_window = window.as_weak();
+    window.window().on_close_requested(move || {
+        if let Some(window) = weak_window.upgrade() {
+            let _ = window.hide();
+        }
+        CloseRequestResponse::KeepWindowShown
+    });
+
     let tx = command_tx.clone();
     window.on_settings_changed(move || {
         let _ = tx.send(UiCommand::SettingsChanged);
