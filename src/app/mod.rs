@@ -175,12 +175,10 @@ impl AppRuntime {
             TrayCommand::Settings => {
                 tracing::info!("settings command received");
                 let profile = self.settings.active_profile();
-                let logs_folder = self.paths.logs_dir().display().to_string();
                 let model_options = self.active_model_options();
                 self.ui.open_settings(
                     &self.settings,
                     api_key_for_profile(&self.api_keys, &profile.id),
-                    &logs_folder,
                     &model_options,
                 )?;
                 Ok(false)

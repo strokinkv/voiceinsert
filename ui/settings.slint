@@ -1,302 +1,9 @@
-import { ComboBox } from "std-widgets.slint";
-
-component Label inherits Text {
-    in property <string> label: "";
-
-    text: label;
-    color: #66746e;
-    font-size: 13px;
-}
-
-component ValueText inherits Text {
-    in property <string> label: "";
-
-    text: label;
-    color: #24312e;
-    font-size: 14px;
-    overflow: elide;
-}
-
-component Field inherits Rectangle {
-    in-out property <string> value: "";
-    callback edited();
-
-    height: 34px;
-    background: #ffffff;
-    border-color: #c8d4ce;
-    border-width: 1px;
-    border-radius: 6px;
-
-    TextInput {
-        text <=> root.value;
-        x: 12px;
-        y: 0;
-        width: parent.width - 24px;
-        height: parent.height;
-        color: #1f2a28;
-        font-size: 14px;
-        vertical-alignment: center;
-        single-line: true;
-        edited => { root.edited(); }
-    }
-}
-
-component FieldRow inherits HorizontalLayout {
-    in property <string> label: "";
-    in-out property <string> value: "";
-    in property <length> field-width: 360px;
-    callback edited();
-
-    height: 34px;
-    horizontal-stretch: 1;
-    spacing: 14px;
-
-    Label {
-        label: root.label;
-        horizontal-stretch: 1;
-        vertical-alignment: center;
-    }
-
-    Field {
-        value <=> root.value;
-        width: root.field-width;
-        edited => { root.edited(); }
-    }
-}
-
-component ComboRow inherits HorizontalLayout {
-    in property <string> label: "";
-    in-out property <string> value: "";
-    in property <[string]> options: [];
-    in property <length> field-width: 360px;
-    callback selected(value: string);
-
-    height: 34px;
-    horizontal-stretch: 1;
-    spacing: 14px;
-
-    Label {
-        label: root.label;
-        horizontal-stretch: 1;
-        vertical-alignment: center;
-    }
-
-    ComboBox {
-        model: root.options;
-        current-value <=> root.value;
-        width: root.field-width;
-        selected(value) => { root.selected(value); }
-    }
-}
-
-component NavItem inherits Rectangle {
-    in property <string> label: "";
-    in property <string> mark: "";
-    in property <bool> selected: false;
-    callback clicked();
-
-    height: 36px;
-    background: selected ? #dceee9 : transparent;
-    border-radius: 6px;
-
-    Rectangle {
-        x: 0;
-        y: 6px;
-        width: 3px;
-        height: 24px;
-        background: root.selected ? #51b3a2 : transparent;
-        border-radius: 2px;
-    }
-
-    Rectangle {
-        x: 14px;
-        y: 7px;
-        width: 22px;
-        height: 22px;
-        background: root.selected ? #51b3a2 : #d6e1dc;
-        border-radius: 5px;
-
-        Text {
-            text: root.mark;
-            color: root.selected ? #ffffff : #50615c;
-            font-size: 10px;
-            font-weight: 700;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-        }
-    }
-
-    Text {
-        text: root.label;
-        color: selected ? #1f2a28 : #61716b;
-        font-size: 13px;
-        font-weight: selected ? 700 : 400;
-        x: 48px;
-        y: 0;
-        width: parent.width - 58px;
-        height: parent.height;
-        horizontal-alignment: left;
-        vertical-alignment: center;
-    }
-
-    TouchArea {
-        width: parent.width;
-        height: parent.height;
-        clicked => { root.clicked(); }
-    }
-}
-
-component SmallButton inherits Rectangle {
-    in property <string> label: "";
-    callback clicked();
-
-    width: 104px;
-    height: 34px;
-    background: touch.pressed ? #d5e5df : touch.has-hover ? #edf5f2 : #ffffff;
-    border-color: #c8d4ce;
-    border-width: 1px;
-    border-radius: 6px;
-
-    Text {
-        text: root.label;
-        color: #1f2a28;
-        font-size: 13px;
-        font-weight: 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    touch := TouchArea {
-        width: parent.width;
-        height: parent.height;
-        clicked => { root.clicked(); }
-    }
-}
-
-component TinyButton inherits Rectangle {
-    in property <string> label: "";
-    callback clicked();
-
-    width: 34px;
-    height: 34px;
-    background: touch.pressed ? #d5e5df : touch.has-hover ? #edf5f2 : #ffffff;
-    border-color: #c8d4ce;
-    border-width: 1px;
-    border-radius: 6px;
-
-    Text {
-        text: root.label;
-        color: #1f2a28;
-        font-size: 16px;
-        font-weight: 700;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    touch := TouchArea {
-        width: parent.width;
-        height: parent.height;
-        clicked => { root.clicked(); }
-    }
-}
-
-component ToggleRow inherits HorizontalLayout {
-    in property <string> label: "";
-    in-out property <bool> checked: false;
-    callback toggled();
-
-    height: 30px;
-    horizontal-stretch: 1;
-    spacing: 12px;
-
-    Text {
-        text: root.label;
-        color: #66746e;
-        font-size: 13px;
-        horizontal-stretch: 1;
-        vertical-alignment: center;
-    }
-
-    Rectangle {
-        width: 48px;
-        height: 26px;
-        background: root.checked ? #51b3a2 : #d7e1dc;
-        border-radius: 6px;
-
-        Rectangle {
-            x: root.checked ? 24px : 4px;
-            y: 4px;
-            width: 18px;
-            height: 18px;
-            background: #ffffff;
-            border-radius: 5px;
-        }
-
-        TouchArea {
-            width: parent.width;
-            height: parent.height;
-            clicked => {
-                root.checked = !root.checked;
-                root.toggled();
-            }
-        }
-    }
-}
-
-component OptionButton inherits Rectangle {
-    in property <string> label: "";
-    in property <bool> selected: false;
-    callback clicked();
-
-    height: 32px;
-    horizontal-stretch: 1;
-    background: selected ? #dceee9 : #ffffff;
-    border-color: selected ? #90cbbd : #c8d4ce;
-    border-width: 1px;
-    border-radius: 6px;
-
-    Text {
-        text: root.label;
-        color: selected ? #163f36 : #50615c;
-        font-size: 13px;
-        font-weight: selected ? 700 : 500;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    TouchArea {
-        width: parent.width;
-        height: parent.height;
-        clicked => { root.clicked(); }
-    }
-}
-
-component PageTitle inherits Text {
-    in property <string> label: "";
-
-    text: label;
-    color: #1f2a28;
-    font-size: 22px;
-    font-weight: 700;
-}
-
-component SectionTitle inherits Text {
-    in property <string> label: "";
-
-    text: label;
-    color: #1f2a28;
-    font-size: 15px;
-    font-weight: 700;
-}
-
-component Section inherits VerticalLayout {
-    horizontal-stretch: 1;
-    spacing: 8px;
-}
+import {
+    SettingsCard, SmallButton, TinyButton, Toast, ToggleRow, VerticalCombo, VerticalField
+} from "./components.slint";
 
 export component SettingsWindow inherits Window {
     in-out property <string> status-text: "";
-    in-out property <string> profile-line: "";
     in-out property <string> api-base-url: "";
     in-out property <string> model-name: "";
     in-out property <[string]> model-options: [];
@@ -304,7 +11,6 @@ export component SettingsWindow inherits Window {
     in-out property <[string]> api-profile-options: [];
     in-out property <string> profile-name: "";
     in-out property <string> api-key: "";
-    in-out property <string> language: "";
     in-out property <string> temperature: "";
     in-out property <string> request-timeout-seconds: "";
     in-out property <string> transcription-hotkey: "";
@@ -319,253 +25,154 @@ export component SettingsWindow inherits Window {
     in-out property <bool> restore-clipboard-content: true;
     in-out property <string> delay-before-paste-milliseconds: "";
     in-out property <string> delay-before-clipboard-restore-milliseconds: "";
-    in-out property <string> logs-folder: "";
     in-out property <string> log-level: "";
-    in-out property <int> selected-page: 0;
     property <bool> is-russian: root.ui-language == "Russian";
-    property <length> content-width: root.width - 290px;
+    property <[string]> recording-mode-options: root.is-russian ? ["Переключатель", "Удержание", "Тишина"] : ["Toggle", "Hold", "SilenceTimeout"];
+    property <[string]> log-level-options: root.is-russian ? ["Инфо", "Отладка", "Предупреждения", "Ошибки"] : ["Information", "Debug", "Warning", "Error"];
 
     callback settings-changed();
     callback add-api-profile();
     callback delete-api-profile();
     callback select-api-profile(profile-name: string);
-    callback change-transcription-hotkey();
-    callback change-translation-hotkey();
     callback open-logs-folder();
 
     title: "VoiceInsert";
     icon: @image-url("../assets/VoiceInsert.ico");
-    width: 1080px;
-    height: 650px;
-    background: #f6f8f7;
+    width: 1360px;
+    height: 800px;
+    background: #eef3f8;
 
-    HorizontalLayout {
-        spacing: 0px;
+    Rectangle {
+        background: #eef3f8;
+        width: parent.width;
+        height: parent.height;
 
-        Rectangle {
-            width: 238px;
-            background: #edf3f0;
-            border-color: #d8e4de;
-            border-width: 0px;
+        SettingsCard {
+            x: 16px;
+            y: 16px;
+            width: 540px;
+            height: 452px;
 
             VerticalLayout {
-                padding-left: 22px;
-                padding-right: 18px;
-                padding-top: 22px;
-                padding-bottom: 18px;
-                spacing: 10px;
+                padding: 20px;
+                spacing: 12px;
 
-                Text {
-                    text: "VoiceInsert";
-                    color: #1f2a28;
-                    font-size: 24px;
-                    font-weight: 700;
-                }
+                HorizontalLayout {
+                    height: 57px;
+                    spacing: 8px;
 
-                Text {
-                    text: root.profile-line;
-                    color: #66746e;
-                    font-size: 13px;
-                    height: 22px;
-                    vertical-alignment: center;
-                }
-
-                Rectangle { height: 6px; background: transparent; }
-
-                NavItem { mark: "G"; label: root.is-russian ? "Общие" : "General"; selected: root.selected-page == 0; clicked => { root.selected-page = 0; } }
-                NavItem { mark: "H"; label: root.is-russian ? "Горячие клавиши" : "Hotkeys"; selected: root.selected-page == 1; clicked => { root.selected-page = 1; } }
-                NavItem { mark: "API"; label: root.is-russian ? "API профиль" : "API Profile"; selected: root.selected-page == 2; clicked => { root.selected-page = 2; } }
-                NavItem { mark: "I"; label: root.is-russian ? "Вставка" : "Insertion"; selected: root.selected-page == 3; clicked => { root.selected-page = 3; } }
-                NavItem { mark: "L"; label: root.is-russian ? "Логи" : "Logs"; selected: root.selected-page == 4; clicked => { root.selected-page = 4; } }
-
-                Rectangle { vertical-stretch: 1; background: transparent; }
-
-                Rectangle {
-                    height: 66px;
-                    background: #e5eee9;
-                    border-color: #d3e0da;
-                    border-width: 1px;
-                    border-radius: 6px;
-
-                    Text {
-                        text: root.status-text == "" ? (root.is-russian ? "Готово" : "Ready") : root.status-text;
-                        x: 12px;
-                        y: 8px;
-                        width: parent.width - 24px;
-                        height: parent.height - 16px;
-                        color: #50615c;
-                        font-size: 12px;
-                        wrap: word-wrap;
+                    VerticalCombo {
+                        label: root.is-russian ? "Активный профиль" : "Active profile";
+                        value <=> root.active-profile-name;
+                        options: root.api-profile-options;
+                        horizontal-stretch: 1;
+                        selected(value) => { root.select-api-profile(value); }
                     }
+
+                    TinyButton { label: "+"; clicked => { root.add-api-profile(); } }
+                    TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
+                }
+
+                VerticalField { label: root.is-russian ? "Имя профиля" : "Profile name"; value <=> root.profile-name; edited => { root.settings-changed(); } }
+                VerticalField { label: "Base URL"; value <=> root.api-base-url; edited => { root.settings-changed(); } }
+                VerticalField { label: "API key"; value <=> root.api-key; edited => { root.settings-changed(); } }
+                VerticalCombo { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; options: root.model-options; selected(value) => { root.settings-changed(); } }
+
+                HorizontalLayout {
+                    height: 57px;
+                    spacing: 12px;
+                    VerticalField { label: root.is-russian ? "Температура" : "Temperature"; hint: root.is-russian ? "0.0-1.0, ниже стабильнее" : "0.0-1.0, lower is steadier"; value <=> root.temperature; horizontal-stretch: 1; edited => { root.settings-changed(); } }
+                    VerticalField { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; hint: root.is-russian ? "Время ожидания API" : "API request timeout"; value <=> root.request-timeout-seconds; horizontal-stretch: 1; edited => { root.settings-changed(); } }
                 }
             }
         }
 
-        Rectangle {
-            background: #f8faf9;
-            horizontal-stretch: 1;
+        SettingsCard {
+            x: 572px;
+            y: 16px;
+            width: 442px;
+            height: 452px;
 
             VerticalLayout {
-                padding-left: 26px;
-                padding-right: 26px;
-                padding-top: 22px;
-                padding-bottom: 22px;
+                padding: 20px;
                 spacing: 12px;
 
-                HorizontalLayout {
-                    height: 40px;
-                    spacing: 14px;
-
-                    PageTitle {
-                        label: root.selected-page == 0 ? (root.is-russian ? "Общие" : "General") :
-                            root.selected-page == 1 ? (root.is-russian ? "Горячие клавиши" : "Hotkeys") :
-                            root.selected-page == 2 ? (root.is-russian ? "API профиль" : "API Profile") :
-                            root.selected-page == 3 ? (root.is-russian ? "Вставка" : "Insertion") :
-                            root.is-russian ? "Логи" : "Logs";
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
+                VerticalField { label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey"; value <=> root.transcription-hotkey; edited => { root.settings-changed(); } }
+                VerticalField { label: root.is-russian ? "Клавиша перевода" : "Translation hotkey"; value <=> root.translation-hotkey; edited => { root.settings-changed(); } }
+                VerticalCombo {
+                    label: root.is-russian ? "Режим записи" : "Recording mode";
+                    value <=> root.recording-mode;
+                    options: root.recording-mode-options;
+                    selected(value) => {
+                        root.recording-mode = value;
+                        root.settings-changed();
                     }
                 }
+                VerticalField { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; hint: root.is-russian ? "Уровень, ниже которого звук считается тишиной" : "Level treated as silence"; value <=> root.silence-threshold-percent; edited => { root.settings-changed(); } }
+                VerticalField { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; hint: root.is-russian ? "Сколько ждать тишину перед остановкой" : "Silence duration before stop"; value <=> root.silence-timeout-milliseconds; edited => { root.settings-changed(); } }
+                VerticalField { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; hint: root.is-russian ? "Жесткий лимит одной записи" : "Hard limit for one recording"; value <=> root.max-recording-seconds; edited => { root.settings-changed(); } }
+            }
+        }
 
-                Rectangle {
-                    horizontal-stretch: 1;
-                    width: root.content-width;
-                    preferred-width: root.content-width;
-                    background: #ffffff;
-                    border-color: #dce6e1;
-                    border-width: 1px;
-                    border-radius: 6px;
+        SettingsCard {
+            x: 1030px;
+            y: 16px;
+            width: 314px;
+            height: 218px;
 
-                    VerticalLayout {
-                        padding: 18px;
-                        spacing: 12px;
-
-                        if root.selected-page == 0: VerticalLayout {
-                            horizontal-stretch: 1;
-                            spacing: 12px;
-
-                            Section {
-                                SectionTitle { label: root.is-russian ? "Приложение" : "Application"; }
-                                ToggleRow { label: root.is-russian ? "Запускать вместе с Windows" : "Start with Windows"; checked <=> root.start-with-windows; toggled => { root.settings-changed(); } }
-                                ToggleRow { label: root.is-russian ? "Звуковое оповещение" : "Sound alerts"; checked <=> root.enable-sounds; toggled => { root.settings-changed(); } }
-
-                                Label { label: root.is-russian ? "Язык" : "Language"; }
-                                HorizontalLayout {
-                                    spacing: 10px;
-                                    OptionButton { label: "Русский"; selected: root.ui-language == "Russian"; clicked => { root.ui-language = "Russian"; root.settings-changed(); } }
-                                    OptionButton { label: "English"; selected: root.ui-language == "English"; clicked => { root.ui-language = "English"; root.settings-changed(); } }
-                                }
-                            }
-                        }
-
-                        if root.selected-page == 1: VerticalLayout {
-                            horizontal-stretch: 1;
-                            spacing: 10px;
-
-                            FieldRow { label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey"; value <=> root.transcription-hotkey; edited => { root.settings-changed(); } }
-                            FieldRow { label: root.is-russian ? "Клавиша перевода" : "Translation hotkey"; value <=> root.translation-hotkey; edited => { root.settings-changed(); } }
-
-                            Label { label: root.is-russian ? "Режим записи" : "Recording mode"; }
-                            HorizontalLayout {
-                                horizontal-stretch: 1;
-                                spacing: 10px;
-                                OptionButton { label: root.is-russian ? "Переключатель" : "Toggle"; selected: root.recording-mode == "Toggle"; clicked => { root.recording-mode = "Toggle"; root.settings-changed(); } }
-                                OptionButton { label: root.is-russian ? "Удержание" : "Hold"; selected: root.recording-mode == "Hold"; clicked => { root.recording-mode = "Hold"; root.settings-changed(); } }
-                                OptionButton { label: root.is-russian ? "Тишина" : "Silence"; selected: root.recording-mode == "SilenceTimeout"; clicked => { root.recording-mode = "SilenceTimeout"; root.settings-changed(); } }
-                            }
-
-                            FieldRow { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; value <=> root.silence-threshold-percent; edited => { root.settings-changed(); } }
-                            FieldRow { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; value <=> root.silence-timeout-milliseconds; edited => { root.settings-changed(); } }
-                            FieldRow { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; value <=> root.max-recording-seconds; edited => { root.settings-changed(); } }
-                        }
-
-                        if root.selected-page == 2: VerticalLayout {
-                            horizontal-stretch: 1;
-                            spacing: 10px;
-
-                            HorizontalLayout {
-                                height: 34px;
-                                horizontal-stretch: 1;
-                                spacing: 8px;
-                                SectionTitle { label: root.is-russian ? "Профиль" : "Profile"; horizontal-stretch: 1; vertical-alignment: center; }
-                                TinyButton { label: "+"; clicked => { root.add-api-profile(); } }
-                                TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
-                            }
-
-                            ComboRow {
-                                label: root.is-russian ? "Активный профиль" : "Active profile";
-                                value <=> root.active-profile-name;
-                                options: root.api-profile-options;
-                                selected(value) => { root.select-api-profile(value); }
-                            }
-                            FieldRow { label: root.is-russian ? "Имя профиля" : "Profile name"; value <=> root.profile-name; edited => { root.settings-changed(); } }
-                            FieldRow { label: "Base URL"; value <=> root.api-base-url; edited => { root.settings-changed(); } }
-                            FieldRow { label: "API key"; value <=> root.api-key; edited => { root.settings-changed(); } }
-                            ComboRow { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; options: root.model-options; selected(value) => { root.settings-changed(); } }
-                            FieldRow { label: root.is-russian ? "Язык распознавания" : "Language"; value <=> root.language; edited => { root.settings-changed(); } }
-                            FieldRow { label: root.is-russian ? "Температура" : "Temperature"; value <=> root.temperature; edited => { root.settings-changed(); } }
-                            FieldRow { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; value <=> root.request-timeout-seconds; edited => { root.settings-changed(); } }
-                        }
-
-                        if root.selected-page == 3: VerticalLayout {
-                            horizontal-stretch: 1;
-                            spacing: 12px;
-
-                            Section {
-                                SectionTitle { label: root.is-russian ? "Буфер обмена" : "Clipboard"; }
-                                ToggleRow { label: root.is-russian ? "Восстанавливать прежнее содержимое буфера" : "Restore previous clipboard content"; checked <=> root.restore-clipboard-content; toggled => { root.settings-changed(); } }
-                            }
-
-                            FieldRow { label: root.is-russian ? "Задержка перед вставкой, мс" : "Delay before paste, ms"; value <=> root.delay-before-paste-milliseconds; edited => { root.settings-changed(); } }
-                            FieldRow { label: root.is-russian ? "Задержка перед восстановлением, мс" : "Delay before restore, ms"; value <=> root.delay-before-clipboard-restore-milliseconds; edited => { root.settings-changed(); } }
-                        }
-
-                        if root.selected-page == 4: VerticalLayout {
-                            horizontal-stretch: 1;
-                            spacing: 12px;
-
-                            Section {
-                                SectionTitle { label: root.is-russian ? "Диагностика" : "Diagnostics"; }
-                                HorizontalLayout {
-                                    height: 34px;
-                                    horizontal-stretch: 1;
-                                    spacing: 14px;
-                                    Label { label: root.is-russian ? "Папка логов" : "Logs folder"; width: 150px; vertical-alignment: center; }
-                                    ValueText { label: root.logs-folder; horizontal-stretch: 1; vertical-alignment: center; }
-                                    SmallButton { label: root.is-russian ? "Открыть" : "Open"; clicked => { root.open-logs-folder(); } }
-                                }
-                            }
-
-                            Section {
-                                SectionTitle { label: root.is-russian ? "Уровень логов" : "Log level"; }
-                                HorizontalLayout {
-                                    horizontal-stretch: 1;
-                                    spacing: 10px;
-                                    OptionButton { label: root.is-russian ? "Инфо" : "Information"; selected: root.log-level == "Information"; clicked => { root.log-level = "Information"; root.settings-changed(); } }
-                                    OptionButton { label: root.is-russian ? "Отладка" : "Debug"; selected: root.log-level == "Debug"; clicked => { root.log-level = "Debug"; root.settings-changed(); } }
-                                    OptionButton { label: root.is-russian ? "Предупреждения" : "Warning"; selected: root.log-level == "Warning"; clicked => { root.log-level = "Warning"; root.settings-changed(); } }
-                                    OptionButton { label: root.is-russian ? "Ошибки" : "Error"; selected: root.log-level == "Error"; clicked => { root.log-level = "Error"; root.settings-changed(); } }
-                                }
-                            }
-
-                        }
-                    }
-                }
-
-                Rectangle { vertical-stretch: 1; background: transparent; }
-
-                HorizontalLayout {
-                    height: 42px;
-                    spacing: 10px;
-
-                    ValueText {
-                        label: root.status-text == "" ? (root.is-russian ? "Готово" : "Ready") : root.status-text;
-                        horizontal-stretch: 1;
-                        vertical-alignment: center;
-                    }
-
+            VerticalLayout {
+                padding: 20px;
+                spacing: 12px;
+                ToggleRow { label: root.is-russian ? "Запускать вместе с Windows" : "Start with Windows"; checked <=> root.start-with-windows; toggled => { root.settings-changed(); } }
+                ToggleRow { label: root.is-russian ? "Звуковое оповещение" : "Sound alerts"; checked <=> root.enable-sounds; toggled => { root.settings-changed(); } }
+                VerticalCombo {
+                    label: root.is-russian ? "Язык интерфейса" : "Interface language";
+                    value <=> root.ui-language;
+                    options: ["Russian", "English"];
+                    selected(value) => { root.ui-language = value; root.settings-changed(); }
                 }
             }
+        }
+
+        SettingsCard {
+            x: 1030px;
+            y: 250px;
+            width: 314px;
+            height: 218px;
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 14px;
+                SmallButton { label: root.is-russian ? "Открыть папку логов" : "Open logs folder"; width: 180px; clicked => { root.open-logs-folder(); } }
+                VerticalCombo {
+                    label: root.is-russian ? "Уровень логов" : "Log level";
+                    hint: root.is-russian ? "Детальность диагностических сообщений" : "Diagnostic message detail";
+                    value <=> root.log-level;
+                    options: root.log-level-options;
+                    selected(value) => { root.log-level = value; root.settings-changed(); }
+                }
+            }
+        }
+
+        SettingsCard {
+            x: 16px;
+            y: 484px;
+            width: 540px;
+            height: 230px;
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 12px;
+                ToggleRow { label: root.is-russian ? "Восстанавливать буфер" : "Restore clipboard"; checked <=> root.restore-clipboard-content; toggled => { root.settings-changed(); } }
+                VerticalField { label: root.is-russian ? "Задержка перед вставкой, мс" : "Delay before paste, ms"; hint: root.is-russian ? "Пауза перед отправкой вставки" : "Pause before paste"; value <=> root.delay-before-paste-milliseconds; edited => { root.settings-changed(); } }
+                VerticalField { label: root.is-russian ? "Задержка перед восстановлением, мс" : "Delay before restore, ms"; hint: root.is-russian ? "Пауза перед возвратом прежнего буфера" : "Pause before restoring clipboard"; value <=> root.delay-before-clipboard-restore-milliseconds; edited => { root.settings-changed(); } }
+            }
+        }
+
+        Toast {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            message: root.status-text;
         }
     }
 }

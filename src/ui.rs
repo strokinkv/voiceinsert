@@ -61,7 +61,6 @@ impl UiController {
         &mut self,
         settings: &AppSettings,
         api_key: &str,
-        logs_folder: &str,
         model_options: &[String],
     ) -> anyhow::Result<()> {
         let window = match &self.settings_window {
@@ -77,7 +76,6 @@ impl UiController {
         let profile = settings.active_profile();
         let model_name = model_label(&profile.model).to_string();
         let profile_options = api_profile_options_for_display(settings);
-        window.set_profile_line(SharedString::from(format!("Profile: {}", profile.name)));
         window.set_api_profile_options(shared_string_model(&profile_options));
         window.set_active_profile_name(SharedString::from(profile.name.as_str()));
         window.set_profile_name(SharedString::from(profile.name.as_str()));
@@ -94,8 +92,9 @@ impl UiController {
         ));
         window.set_transcription_hotkey(SharedString::from(settings.hotkey.as_str()));
         window.set_translation_hotkey(SharedString::from(settings.translation_hotkey.as_str()));
-        window.set_recording_mode(SharedString::from(recording_mode_label(
+        window.set_recording_mode(SharedString::from(recording_mode_display_label(
             settings.recording_mode,
+            settings.ui_language,
         )));
         window.set_silence_threshold_percent(SharedString::from(
             settings.silence_threshold_percent.to_string(),
@@ -118,8 +117,10 @@ impl UiController {
                 .delay_before_clipboard_restore_milliseconds
                 .to_string(),
         ));
-        window.set_logs_folder(SharedString::from(logs_folder));
-        window.set_log_level(SharedString::from(settings.log_level.as_str()));
+        window.set_log_level(SharedString::from(log_level_display_label(
+            &settings.log_level,
+            settings.ui_language,
+        )));
         window.set_status_text(SharedString::from(""));
         window.show()?;
         Ok(())
@@ -166,7 +167,6 @@ impl UiController {
     pub fn set_profile_metadata(&self, settings: &AppSettings) {
         if let Some(window) = &self.settings_window {
             let profile = settings.active_profile();
-            window.set_profile_line(SharedString::from(format!("Profile: {}", profile.name)));
             window.set_api_profile_options(shared_string_model(&api_profile_options_for_display(
                 settings,
             )));
@@ -295,11 +295,27 @@ fn shared_string_model(values: &[String]) -> ModelRc<SharedString> {
     ModelRc::new(VecModel::from(rows))
 }
 
-fn recording_mode_label(mode: RecordingMode) -> &'static str {
-    match mode {
-        RecordingMode::Toggle => "Toggle",
-        RecordingMode::Hold => "Hold",
-        RecordingMode::SilenceTimeout => "SilenceTimeout",
+fn recording_mode_display_label(mode: RecordingMode, language: AppLanguage) -> &'static str {
+    match (language, mode) {
+        (AppLanguage::Russian, RecordingMode::Toggle) => "Переключатель",
+        (AppLanguage::Russian, RecordingMode::Hold) => "Удержание",
+        (AppLanguage::Russian, RecordingMode::SilenceTimeout) => "Тишина",
+        (_, RecordingMode::Toggle) => "Toggle",
+        (_, RecordingMode::Hold) => "Hold",
+        (_, RecordingMode::SilenceTimeout) => "SilenceTimeout",
+    }
+}
+
+fn log_level_display_label(level: &str, language: AppLanguage) -> &'static str {
+    match (language, level) {
+        (AppLanguage::Russian, "Debug") => "Отладка",
+        (AppLanguage::Russian, "Warning") => "Предупреждения",
+        (AppLanguage::Russian, "Error") => "Ошибки",
+        (AppLanguage::Russian, _) => "Инфо",
+        (_, "Debug") => "Debug",
+        (_, "Warning") => "Warning",
+        (_, "Error") => "Error",
+        _ => "Information",
     }
 }
 
