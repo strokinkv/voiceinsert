@@ -11,8 +11,6 @@ impl AppRuntime {
         match command {
             UiCommand::SettingsChanged => match self.save_settings_from_ui() {
                 Ok(models_source_changed) => {
-                    self.ui
-                        .set_status(settings_saved_status(self.settings.ui_language));
                     if models_source_changed {
                         self.queue_model_load_for_active_profile()?;
                     }
@@ -31,8 +29,6 @@ impl AppRuntime {
                 self.http = http_client_for_profile(self.settings.active_profile())?;
                 crate::settings::save_settings(&self.paths, &self.settings)?;
                 self.reopen_settings();
-                self.ui
-                    .set_status(api_profile_added_status(self.settings.ui_language));
                 self.queue_model_load_for_active_profile()?;
             }
             UiCommand::DeleteApiProfile => {
@@ -53,8 +49,6 @@ impl AppRuntime {
                     crate::settings::save_settings(&self.paths, &self.settings)?;
                     crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
                     self.reopen_settings();
-                    self.ui
-                        .set_status(api_profile_deleted_status(self.settings.ui_language));
                     self.queue_model_load_for_active_profile()?;
                 } else {
                     self.ui
@@ -70,8 +64,6 @@ impl AppRuntime {
                     self.http = http_client_for_profile(self.settings.active_profile())?;
                     crate::settings::save_settings(&self.paths, &self.settings)?;
                     self.reopen_settings();
-                    self.ui
-                        .set_status(api_profile_selected_status(self.settings.ui_language));
                     self.queue_model_load_for_active_profile()?;
                 }
             }
@@ -236,30 +228,6 @@ fn parse_log_level(value: &str) -> &'static str {
         "Error" | "Ошибки" => "Error",
         _ => "Information",
     }
-}
-
-pub(super) fn settings_saved_status(language: AppLanguage) -> &'static str {
-    crate::i18n::texts(language).settings_saved
-}
-
-pub(super) fn models_loading_status(language: AppLanguage) -> &'static str {
-    crate::i18n::texts(language).models_loading
-}
-
-pub(super) fn models_loaded_status(language: AppLanguage) -> &'static str {
-    crate::i18n::texts(language).models_loaded
-}
-
-pub(super) fn api_profile_added_status(language: AppLanguage) -> &'static str {
-    crate::i18n::texts(language).api_profile_added
-}
-
-pub(super) fn api_profile_deleted_status(language: AppLanguage) -> &'static str {
-    crate::i18n::texts(language).api_profile_deleted
-}
-
-pub(super) fn api_profile_selected_status(language: AppLanguage) -> &'static str {
-    crate::i18n::texts(language).api_profile_selected
 }
 
 pub(super) fn api_profile_required_status(language: AppLanguage) -> &'static str {

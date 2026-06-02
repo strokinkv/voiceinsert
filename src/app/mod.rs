@@ -22,8 +22,7 @@ use std::time::Duration;
 
 use background::{AudioTask, BackgroundEvent, spawn_load_models_task, spawn_voice_insert_task};
 use commands::{
-    api_key_for_profile, http_client_for_profile, model_for_request, models_loaded_status,
-    models_loading_status,
+    api_key_for_profile, http_client_for_profile, model_for_request,
 };
 use state::{StateCommand, VoiceInsertState, log_error_message};
 
@@ -311,8 +310,6 @@ impl AppRuntime {
                             model_for_request(&self.settings.active_profile().model);
                         self.ui
                             .set_model_options(current_model, &self.model_options);
-                        self.ui
-                            .set_status(models_loaded_status(self.settings.ui_language));
                     }
                 }
                 Ok(BackgroundEvent::VoiceInsertionStarted) => {
@@ -387,8 +384,6 @@ impl AppRuntime {
         self.model_options.clear();
         self.ui
             .set_model_options(&current_model, &self.model_options);
-        self.ui
-            .set_status(models_loading_status(self.settings.ui_language));
         spawn_load_models_task(
             self.tokio.handle().clone(),
             self.http.clone(),
@@ -495,9 +490,8 @@ fn acquire_single_instance(_name: &str) -> anyhow::Result<SingleInstanceGuard> {
 mod tests {
     use super::SingleInstanceGuard;
     use super::commands::{
-        api_key_for_profile, apply_settings_edit, model_for_request, models_loaded_status,
-        models_loading_status, profile_id_by_name, profile_requires_http_rebuild,
-        settings_saved_status,
+        api_key_for_profile, apply_settings_edit, model_for_request, profile_id_by_name,
+        profile_requires_http_rebuild,
     };
     use crate::settings::{ApiProfile, AppLanguage, RecordingMode};
     use crate::ui::SettingsEdit;
@@ -587,31 +581,6 @@ mod tests {
         assert_eq!(settings.delay_before_paste_milliseconds, 120);
         assert_eq!(settings.delay_before_clipboard_restore_milliseconds, 500);
         assert_eq!(settings.log_level, "Debug");
-    }
-
-    #[test]
-    fn settings_status_messages_follow_ui_language() {
-        assert_eq!(
-            settings_saved_status(AppLanguage::Russian),
-            "Настройки сохранены."
-        );
-        assert_eq!(
-            settings_saved_status(AppLanguage::English),
-            "Settings saved."
-        );
-        assert_eq!(
-            models_loading_status(AppLanguage::Russian),
-            "Загрузка моделей..."
-        );
-        assert_eq!(
-            models_loading_status(AppLanguage::English),
-            "Loading models..."
-        );
-        assert_eq!(
-            models_loaded_status(AppLanguage::Russian),
-            "Модели загружены."
-        );
-        assert_eq!(models_loaded_status(AppLanguage::English), "Models loaded.");
     }
 
     #[test]
