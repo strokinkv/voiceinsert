@@ -100,7 +100,7 @@ fn ensure_success(
     if result == ERROR_SUCCESS {
         Ok(())
     } else {
-        anyhow::bail!("{context}: Win32 error {}", result.0)
+        anyhow::bail!("{context}: {result:?}")
     }
 }
 

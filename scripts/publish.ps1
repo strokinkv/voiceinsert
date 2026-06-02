@@ -24,3 +24,4 @@ Copy-Item -LiteralPath $releaseExe -Destination (Join-Path $publishDir "VoiceIns
 Copy-Item -LiteralPath (Join-Path $root "assets\VoiceInsert.ico") -Destination $publishDir -Force
 Copy-Item -LiteralPath (Join-Path $root "assets\record-start.wav") -Destination $publishDir -Force
 Copy-Item -LiteralPath (Join-Path $root "assets\record-stop.wav") -Destination $publishDir -Force
+Copy-Item -LiteralPath (Join-Path $root "assets\record-error.wav") -Destination $publishDir -Force

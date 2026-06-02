@@ -102,6 +102,17 @@ fn logging_init_creates_logs_dir() {
     assert!(paths.logs_dir().exists());
 }
 
+#[test]
+fn logging_init_succeeds_when_subscriber_is_already_set() {
+    let temp = tempfile::tempdir().unwrap();
+    let paths = voiceinsert::paths::AppPaths::for_test(temp.path());
+    let _ = tracing_subscriber::fmt().try_init();
+
+    voiceinsert::logging::init(&paths, "Debug").unwrap();
+
+    assert!(paths.logs_dir().exists());
+}
+
 #[cfg(windows)]
 #[test]
 fn dpapi_protect_unprotect_roundtrip() {

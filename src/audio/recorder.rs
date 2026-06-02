@@ -80,7 +80,7 @@ impl Recorder {
 
     pub fn start<F>(&mut self, mut on_level: F) -> anyhow::Result<()>
     where
-        F: FnMut(f32) + Send + 'static,
+        F: FnMut(f32, u64) + Send + 'static,
     {
         if self.stream.is_some() {
             return Ok(());
@@ -108,6 +108,7 @@ impl Recorder {
         let stream_config: StreamConfig = supported_config.into();
         let channels = usize::from(stream_config.channels);
         self.capture_sample_rate = stream_config.sample_rate.0;
+        let capture_sample_rate = self.capture_sample_rate;
         let samples = Arc::clone(&self.samples);
         let max_buffer_samples = self.config.max_buffer_samples;
         let err_fn = |error| tracing::warn!(%error, "input audio stream error");
@@ -119,6 +120,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_i8_to_i16,
@@ -134,6 +136,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_i16_to_i16,
@@ -149,6 +152,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_i24_to_i16,
@@ -164,6 +168,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_i32_to_i16,
@@ -179,6 +184,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_i64_to_i16,
@@ -194,6 +200,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_u8_to_i16,
@@ -209,6 +216,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_u16_to_i16,
@@ -224,6 +232,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_u32_to_i16,
@@ -239,6 +248,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_u64_to_i16,
@@ -254,6 +264,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_f32_to_i16,
@@ -269,6 +280,7 @@ impl Recorder {
                     capture_samples(
                         data,
                         channels,
+                        capture_sample_rate,
                         &samples,
                         &mut on_level,
                         convert_f64_to_i16,
@@ -356,6 +368,14 @@ pub fn resample_linear_i16(samples: &[i16], source_rate: u32, target_rate: u32) 
     }
 
     output
+}
+
+pub fn frame_duration_ms(mono_sample_count: usize, sample_rate: u32) -> u64 {
+    if sample_rate == 0 {
+        return 0;
+    }
+
+    ((mono_sample_count as u64) * 1000 / u64::from(sample_rate)).max(1)
 }
 
 pub fn convert_i16_to_i16(sample: i16) -> i16 {
@@ -462,23 +482,25 @@ fn supported_config(
 fn capture_samples<T, F, C>(
     data: &[T],
     channels: usize,
+    sample_rate: u32,
     samples: &Arc<Mutex<Vec<i16>>>,
     on_level: &mut F,
     convert: C,
     max_buffer_samples: usize,
 ) where
     T: Copy,
-    F: FnMut(f32),
+    F: FnMut(f32, u64),
     C: Fn(T) -> i16,
 {
     let mono = downmix_to_mono(data, channels, convert);
     let level = peak_level_i16(&mono);
+    let delta_ms = frame_duration_ms(mono.len(), sample_rate);
     append_limited_samples(
         &mut samples.lock().expect("recorder samples lock poisoned"),
         &mono,
         max_buffer_samples,
     );
-    on_level(level);
+    on_level(level, delta_ms);
 }
 
 pub fn append_limited_samples(buffer: &mut Vec<i16>, samples: &[i16], max_samples: usize) {

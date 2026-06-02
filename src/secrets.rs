@@ -44,9 +44,10 @@ pub fn protect(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     use windows::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptProtectData};
     use windows::core::PCWSTR;
 
+    let mut input_bytes = bytes.to_vec();
     let input = CRYPT_INTEGER_BLOB {
-        cbData: bytes.len() as u32,
-        pbData: bytes.as_ptr() as *mut u8,
+        cbData: input_bytes.len() as u32,
+        pbData: input_bytes.as_mut_ptr(),
     };
     let mut output = CRYPT_INTEGER_BLOB::default();
 
@@ -69,9 +70,10 @@ pub fn unprotect(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     use windows::Win32::Foundation::{HLOCAL, LocalFree};
     use windows::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptUnprotectData};
 
+    let mut input_bytes = bytes.to_vec();
     let input = CRYPT_INTEGER_BLOB {
-        cbData: bytes.len() as u32,
-        pbData: bytes.as_ptr() as *mut u8,
+        cbData: input_bytes.len() as u32,
+        pbData: input_bytes.as_mut_ptr(),
     };
     let mut output = CRYPT_INTEGER_BLOB::default();
 

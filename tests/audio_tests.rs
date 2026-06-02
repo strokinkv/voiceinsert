@@ -3,7 +3,7 @@ use voiceinsert::audio::recorder::{
     AudioDevice, append_limited_samples, convert_f32_to_i16, convert_f64_to_i16, convert_i8_to_i16,
     convert_i24_to_i16, convert_i32_to_i16, convert_i64_to_i16, convert_u8_to_i16,
     convert_u16_to_i16, convert_u32_to_i16, convert_u64_to_i16, encode_wav_mono_16khz_i16,
-    resample_linear_i16,
+    frame_duration_ms, resample_linear_i16,
 };
 use voiceinsert::settings::RecordingMode;
 
@@ -15,6 +15,13 @@ fn toggle_and_hold_do_not_stop_on_silence() {
 
 #[test]
 fn silence_timeout_stops_on_silence() {
+    assert!(should_stop_on_silence(RecordingMode::SilenceTimeout));
+}
+
+#[test]
+fn silence_policy_matches_spec() {
+    assert!(!should_stop_on_silence(RecordingMode::Toggle));
+    assert!(!should_stop_on_silence(RecordingMode::Hold));
     assert!(should_stop_on_silence(RecordingMode::SilenceTimeout));
 }
 
@@ -72,6 +79,12 @@ fn resampling_converts_common_capture_rate_to_ai2npu_rate() {
     let output = resample_linear_i16(&source, 48_000, 16_000);
 
     assert_eq!(output.len(), 16_000);
+}
+
+#[test]
+fn frame_duration_uses_sample_count_and_capture_rate() {
+    assert_eq!(frame_duration_ms(480, 48_000), 10);
+    assert_eq!(frame_duration_ms(160, 16_000), 10);
 }
 
 #[test]

@@ -1,3 +1,8 @@
+//! Core library for the VoiceInsert Windows speech-to-text tray application.
+//!
+//! The crate exposes the runtime, settings, audio, API, tray, UI, and Windows
+//! integration modules used by the `VoiceInsert.exe` binary.
+
 pub mod api;
 pub mod app;
 pub mod audio;

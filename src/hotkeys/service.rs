@@ -6,6 +6,7 @@ use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 pub enum HotkeyAction {
     TranscribePressed,
     TranslatePressed,
+    CancelPressed,
     Released,
 }
 
@@ -48,6 +49,7 @@ pub struct GlobalHotkeyEvents {
     registration: HotkeyRegistration,
     transcription: HotKey,
     translation: HotKey,
+    cancel: HotKey,
 }
 
 impl GlobalHotkeyEvents {
@@ -55,16 +57,19 @@ impl GlobalHotkeyEvents {
         let registration = HotkeyRegistration::new(transcription, translation)?;
         let transcription = parse_global_hotkey(&registration.transcription)?;
         let translation = parse_global_hotkey(&registration.translation)?;
+        let cancel = cancel_hotkey()?;
         let manager = GlobalHotKeyManager::new()?;
 
         manager.register(transcription)?;
         manager.register(translation)?;
+        manager.register(cancel)?;
 
         Ok(Self {
             _manager: manager,
             registration,
             transcription,
             translation,
+            cancel,
         })
     }
 
@@ -77,6 +82,7 @@ impl Drop for GlobalHotkeyEvents {
     fn drop(&mut self) {
         let _ = self._manager.unregister(self.transcription);
         let _ = self._manager.unregister(self.translation);
+        let _ = self._manager.unregister(self.cancel);
     }
 }
 
@@ -89,6 +95,9 @@ impl HotkeyEvents for GlobalHotkeyEvents {
             }
             HotKeyState::Pressed if event.id == self.translation.id() => {
                 Some(HotkeyAction::TranslatePressed)
+            }
+            HotKeyState::Pressed if event.id == self.cancel.id() => {
+                Some(HotkeyAction::CancelPressed)
             }
             HotKeyState::Released
                 if event.id == self.transcription.id() || event.id == self.translation.id() =>
@@ -105,9 +114,13 @@ pub fn parse_global_hotkey(value: &str) -> anyhow::Result<HotKey> {
     Ok(normalized.parse()?)
 }
 
+fn cancel_hotkey() -> anyhow::Result<HotKey> {
+    Ok("Esc".parse()?)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{HotkeyRegistration, parse_global_hotkey};
+    use super::{HotkeyRegistration, cancel_hotkey, parse_global_hotkey};
 
     #[test]
     fn registration_normalizes_hotkeys() {
@@ -127,5 +140,10 @@ mod tests {
         assert!(parse_global_hotkey("Ctrl+Space").is_ok());
         assert!(parse_global_hotkey("Alt+Y").is_ok());
         assert!(parse_global_hotkey("Ctrl+F12").is_ok());
+    }
+
+    #[test]
+    fn cancel_hotkey_is_escape_without_modifier() {
+        assert!(cancel_hotkey().is_ok());
     }
 }

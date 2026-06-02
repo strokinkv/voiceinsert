@@ -17,6 +17,8 @@ fn defaults_create_ai2npu_and_groq_profiles() {
 
     assert_eq!(settings.active_profile().name, "ai2npu");
     assert_eq!(settings.active_profile().base_url, "http://localhost:9555");
+    assert_eq!(settings.active_profile().temperature, 0.2);
+    assert_eq!(settings.active_profile().request_timeout_seconds, 120);
     assert_eq!(
         settings.active_profile().model,
         "openai/whisper-large-v3-turbo"
@@ -26,6 +28,8 @@ fn defaults_create_ai2npu_and_groq_profiles() {
         settings.api_profiles[1].base_url,
         "https://api.groq.com/openai/"
     );
+    assert_eq!(settings.api_profiles[1].temperature, 0.2);
+    assert_eq!(settings.api_profiles[1].request_timeout_seconds, 120);
     assert_eq!(settings.api_profiles[1].model, "whisper-large-v3");
 }
 
@@ -117,11 +121,29 @@ fn partial_camel_case_settings_deserialize_and_normalize_profiles() {
 }
 
 #[test]
+fn legacy_top_level_profile_values_migrate_when_profiles_are_missing() {
+    let json = r#"{
+        "settingsVersion": 7,
+        "activeApiProfileId": "",
+        "temperature": 0.7,
+        "requestTimeoutSeconds": 45
+    }"#;
+
+    let settings = voiceinsert::settings::settings_from_json(json).unwrap();
+
+    assert_eq!(settings.active_profile().temperature, 0.7);
+    assert_eq!(settings.active_profile().request_timeout_seconds, 45);
+}
+
+#[test]
 fn camel_case_settings_deserialize_profiles_and_active_profile() {
     let settings: AppSettings = serde_json::from_str(
         r#"{
             "settingsVersion": 8,
             "activeApiProfileId": "remote",
+            "temperature": 0.9,
+            "requestTimeoutSeconds": 999,
+            "inputDeviceIndex": 3,
             "apiProfiles": [
                 {
                     "id": "remote",
@@ -129,8 +151,8 @@ fn camel_case_settings_deserialize_profiles_and_active_profile() {
                     "baseUrl": "https://example.test/openai/",
                     "model": "whisper",
                     "language": "en",
-                    "temperature": 0.4,
-                    "requestTimeoutSeconds": 45
+                    "temperature": 4.2,
+                    "requestTimeoutSeconds": 1
                 }
             ],
             "recordingMode": "Hold",
@@ -146,16 +168,25 @@ fn camel_case_settings_deserialize_profiles_and_active_profile() {
         settings.active_profile().base_url,
         "https://example.test/openai/"
     );
-    assert_eq!(settings.active_profile().request_timeout_seconds, 45);
+    assert_eq!(settings.active_profile().temperature, 1.0);
+    assert_eq!(settings.active_profile().request_timeout_seconds, 5);
     assert_eq!(settings.recording_mode, RecordingMode::Hold);
     assert_eq!(settings.ui_language, AppLanguage::English);
 }
 
 #[test]
-fn numeric_settings_are_clamped() {
+fn profile_settings_are_clamped_during_normalization() {
     let settings = AppSettings {
-        temperature: 4.2,
-        request_timeout_seconds: 1,
+        api_profiles: vec![voiceinsert::settings::ApiProfile {
+            id: "custom".to_string(),
+            name: "custom".to_string(),
+            base_url: "https://example.test/openai/".to_string(),
+            model: "whisper".to_string(),
+            language: "en".to_string(),
+            temperature: 4.2,
+            request_timeout_seconds: 1,
+        }],
+        active_api_profile_id: "custom".to_string(),
         silence_timeout_milliseconds: 50,
         max_recording_seconds: 0,
         ..AppSettings::default()
@@ -163,8 +194,55 @@ fn numeric_settings_are_clamped() {
 
     let settings = settings.normalized();
 
-    assert_eq!(settings.temperature, 1.0);
-    assert_eq!(settings.request_timeout_seconds, 5);
+    assert_eq!(settings.active_profile().temperature, 1.0);
+    assert_eq!(settings.active_profile().request_timeout_seconds, 5);
     assert_eq!(settings.silence_timeout_milliseconds, 100);
     assert_eq!(settings.max_recording_seconds, 1);
+}
+
+#[test]
+fn normalization_preserves_existing_profile_order_after_rename() {
+    let settings = AppSettings {
+        active_api_profile_id: "ai2npu".to_string(),
+        api_profiles: vec![
+            voiceinsert::settings::ApiProfile {
+                id: "custom".to_string(),
+                name: "Custom".to_string(),
+                base_url: "https://example.test/openai/".to_string(),
+                model: "whisper".to_string(),
+                language: String::new(),
+                temperature: 0.2,
+                request_timeout_seconds: 120,
+            },
+            voiceinsert::settings::ApiProfile {
+                id: "ai2npu".to_string(),
+                name: "Local NPU".to_string(),
+                base_url: "http://localhost:9555".to_string(),
+                model: "openai/whisper-large-v3-turbo".to_string(),
+                language: String::new(),
+                temperature: 0.2,
+                request_timeout_seconds: 120,
+            },
+            voiceinsert::settings::ApiProfile {
+                id: "groq".to_string(),
+                name: "groq".to_string(),
+                base_url: "https://api.groq.com/openai/".to_string(),
+                model: "whisper-large-v3".to_string(),
+                language: String::new(),
+                temperature: 0.2,
+                request_timeout_seconds: 120,
+            },
+        ],
+        ..AppSettings::default()
+    }
+    .normalized();
+
+    let ids = settings
+        .api_profiles
+        .iter()
+        .map(|profile| profile.id.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(ids, ["custom", "ai2npu", "groq"]);
+    assert_eq!(settings.active_profile().name, "Local NPU");
 }

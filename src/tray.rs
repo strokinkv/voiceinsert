@@ -34,61 +34,27 @@ impl TrayMenuLabels {
     }
 }
 
-#[derive(Debug)]
-pub struct TrayService {
-    labels: TrayMenuLabels,
-    state: TrayState,
-}
-
-impl TrayService {
-    pub fn new(language: AppLanguage) -> Self {
-        Self {
-            labels: TrayMenuLabels::for_language(language),
-            state: TrayState::Idle,
-        }
-    }
-
-    pub fn labels(&self) -> &TrayMenuLabels {
-        &self.labels
-    }
-
-    pub fn state(&self) -> TrayState {
-        self.state
-    }
-
-    pub fn set_language(&mut self, language: AppLanguage) {
-        self.labels = TrayMenuLabels::for_language(language);
-    }
-
-    pub fn set_state(&mut self, state: TrayState) {
-        self.state = state;
-    }
-}
-
 pub struct RuntimeTray {
     _tray_icon: tray_icon::TrayIcon,
     _menu: tray_icon::menu::Menu,
     settings_item: tray_icon::menu::MenuItem,
     exit_item: tray_icon::menu::MenuItem,
-    service: TrayService,
+    labels: TrayMenuLabels,
+    state: TrayState,
 }
 
 impl RuntimeTray {
     pub fn new(language: AppLanguage) -> anyhow::Result<Self> {
-        let service = TrayService::new(language);
+        let labels = TrayMenuLabels::for_language(language);
         let menu = tray_icon::menu::Menu::new();
         let settings_item = tray_icon::menu::MenuItem::with_id(
             SETTINGS_MENU_ID,
-            service.labels().settings.as_str(),
+            labels.settings.as_str(),
             true,
             None,
         );
-        let exit_item = tray_icon::menu::MenuItem::with_id(
-            EXIT_MENU_ID,
-            service.labels().exit.as_str(),
-            true,
-            None,
-        );
+        let exit_item =
+            tray_icon::menu::MenuItem::with_id(EXIT_MENU_ID, labels.exit.as_str(), true, None);
 
         menu.append(&settings_item)?;
         menu.append(&tray_icon::menu::PredefinedMenuItem::separator())?;
@@ -105,7 +71,8 @@ impl RuntimeTray {
             _menu: menu,
             settings_item,
             exit_item,
-            service,
+            labels,
+            state: TrayState::Idle,
         })
     }
 
@@ -121,18 +88,17 @@ impl RuntimeTray {
     }
 
     pub fn set_language(&mut self, language: AppLanguage) {
-        self.service.set_language(language);
-        self.settings_item
-            .set_text(self.service.labels().settings.as_str());
-        self.exit_item.set_text(self.service.labels().exit.as_str());
+        self.labels = TrayMenuLabels::for_language(language);
+        self.settings_item.set_text(self.labels.settings.as_str());
+        self.exit_item.set_text(self.labels.exit.as_str());
     }
 
     pub fn set_state(&mut self, state: TrayState) {
-        self.service.set_state(state);
+        self.state = state;
     }
 
     pub fn state(&self) -> TrayState {
-        self.service.state()
+        self.state
     }
 }
 

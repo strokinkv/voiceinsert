@@ -1,4 +1,9 @@
-use std::{io::Cursor, thread, time::Duration};
+use std::{
+    io::Cursor,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use anyhow::{Context, bail};
 use cpal::{
@@ -6,6 +11,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
+/// Sound event emitted by the recording workflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SoundKind {
     Start,
@@ -13,55 +19,90 @@ pub enum SoundKind {
     Error,
 }
 
+/// Returns the embedded WAV bytes for a sound event.
 pub fn sound_bytes(kind: SoundKind) -> &'static [u8] {
     match kind {
         SoundKind::Start => include_bytes!("../assets/record-start.wav"),
         SoundKind::Stop => include_bytes!("../assets/record-stop.wav"),
-        SoundKind::Error => include_bytes!("../assets/record-stop.wav"),
+        SoundKind::Error => include_bytes!("../assets/record-error.wav"),
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Plays VoiceInsert notification sounds when sound alerts are enabled.
+#[derive(Clone)]
 pub struct SoundService {
     pub enabled: bool,
+    start: WavSamples,
+    stop: WavSamples,
+    error: WavSamples,
+    output: Arc<Mutex<Option<SoundOutput>>>,
 }
 
 impl SoundService {
+    /// Decodes embedded sound assets and creates a service with lazy output-device caching.
+    pub fn new(enabled: bool) -> anyhow::Result<Self> {
+        Ok(Self {
+            enabled,
+            start: decode_wav(sound_bytes(SoundKind::Start))?,
+            stop: decode_wav(sound_bytes(SoundKind::Stop))?,
+            error: decode_wav(sound_bytes(SoundKind::Error))?,
+            output: Arc::new(Mutex::new(None)),
+        })
+    }
+
+    /// Plays the requested sound, returning immediately after the output stream is started.
     pub fn play(&self, kind: SoundKind) -> anyhow::Result<()> {
         if !self.enabled {
             return Ok(());
         }
 
-        let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .context("no default output audio device available")?;
-        let supported_config = device
-            .default_output_config()
-            .context("failed to get default output audio config")?;
-        let stream_config: cpal::StreamConfig = supported_config.clone().into();
-        let samples = decode_wav(sound_bytes(kind))?;
+        let output = self.output()?;
+        let samples = match kind {
+            SoundKind::Start => self.start.clone(),
+            SoundKind::Stop => self.stop.clone(),
+            SoundKind::Error => self.error.clone(),
+        };
         let output_samples = prepare_samples_for_output(
             &samples,
-            stream_config.sample_rate.0,
-            usize::from(stream_config.channels),
+            output.stream_config.sample_rate.0,
+            usize::from(output.stream_config.channels),
         )?;
         let playback_duration = output_samples.duration();
 
-        let stream = match supported_config.sample_format() {
-            cpal::SampleFormat::I8 => build_stream::<i8>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::I16 => build_stream::<i16>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::I24 => {
-                build_stream::<cpal::I24>(&device, &stream_config, output_samples)
+        let stream = match output.supported_config.sample_format() {
+            cpal::SampleFormat::I8 => {
+                build_stream::<i8>(&output.device, &output.stream_config, output_samples)
             }
-            cpal::SampleFormat::I32 => build_stream::<i32>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::I64 => build_stream::<i64>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::U8 => build_stream::<u8>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::U16 => build_stream::<u16>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::U32 => build_stream::<u32>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::U64 => build_stream::<u64>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::F32 => build_stream::<f32>(&device, &stream_config, output_samples),
-            cpal::SampleFormat::F64 => build_stream::<f64>(&device, &stream_config, output_samples),
+            cpal::SampleFormat::I16 => {
+                build_stream::<i16>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::I24 => {
+                build_stream::<cpal::I24>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::I32 => {
+                build_stream::<i32>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::I64 => {
+                build_stream::<i64>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::U8 => {
+                build_stream::<u8>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::U16 => {
+                build_stream::<u16>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::U32 => {
+                build_stream::<u32>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::U64 => {
+                build_stream::<u64>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::F32 => {
+                build_stream::<f32>(&output.device, &output.stream_config, output_samples)
+            }
+            cpal::SampleFormat::F64 => {
+                build_stream::<f64>(&output.device, &output.stream_config, output_samples)
+            }
             format => bail!("unsupported output sample format: {format:?}"),
         }?;
 
@@ -76,6 +117,14 @@ impl SoundService {
 
         Ok(())
     }
+
+    fn output(&self) -> anyhow::Result<SoundOutput> {
+        let mut output = self.output.lock().expect("sound output lock poisoned");
+        if output.is_none() {
+            *output = Some(SoundOutput::default_output()?);
+        }
+        Ok(output.as_ref().expect("sound output initialized").clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -83,6 +132,32 @@ struct WavSamples {
     samples: Vec<f32>,
     sample_rate: u32,
     channels: usize,
+}
+
+#[derive(Clone)]
+struct SoundOutput {
+    device: cpal::Device,
+    supported_config: cpal::SupportedStreamConfig,
+    stream_config: cpal::StreamConfig,
+}
+
+impl SoundOutput {
+    fn default_output() -> anyhow::Result<Self> {
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .context("no default output audio device available")?;
+        let supported_config = device
+            .default_output_config()
+            .context("failed to get default output audio config")?;
+        let stream_config = supported_config.clone().into();
+
+        Ok(Self {
+            device,
+            supported_config,
+            stream_config,
+        })
+    }
 }
 
 impl WavSamples {
@@ -248,8 +323,17 @@ mod tests {
     }
 
     #[test]
+    fn service_new_caches_decoded_sounds_without_audio_device() {
+        let service = SoundService::new(false).expect("embedded sounds should decode");
+
+        assert!(!service.start.samples.is_empty());
+        assert!(!service.stop.samples.is_empty());
+        assert!(!service.error.samples.is_empty());
+    }
+
+    #[test]
     fn disabled_play_is_noop_without_audio_device() {
-        let service = SoundService { enabled: false };
+        let service = SoundService::new(false).expect("embedded sounds should decode");
 
         service
             .play(SoundKind::Start)

@@ -7,8 +7,10 @@ use std::sync::LazyLock;
 
 use crate::paths::AppPaths;
 
+/// Default ai2npu/OpenAI-compatible transcription model used when a profile model is empty.
 pub const AI2NPU_DEFAULT_MODEL: &str = "openai/whisper-large-v3-turbo";
 
+/// Recording stop policy controlled by the hotkey mode setting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum RecordingMode {
     Toggle,
@@ -40,6 +42,7 @@ impl<'de> Deserialize<'de> for RecordingMode {
     }
 }
 
+/// Settings UI language.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum AppLanguage {
     Russian,
@@ -126,6 +129,7 @@ where
     })
 }
 
+/// OpenAI-compatible audio API profile.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ApiProfile {
@@ -152,7 +156,8 @@ impl Default for ApiProfile {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Persisted application settings loaded from `settings.json`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
     pub settings_version: u32,
@@ -164,7 +169,6 @@ pub struct AppSettings {
     pub silence_threshold_percent: u8,
     pub silence_timeout_milliseconds: u64,
     pub max_recording_seconds: u64,
-    pub input_device_index: Option<usize>,
     pub start_with_windows: bool,
     pub ui_language: AppLanguage,
     pub launch_minimized_to_tray: bool,
@@ -174,8 +178,6 @@ pub struct AppSettings {
     pub delay_before_paste_milliseconds: u64,
     pub delay_before_clipboard_restore_milliseconds: u64,
     pub log_level: String,
-    pub temperature: f64,
-    pub request_timeout_seconds: u64,
 }
 
 impl Default for AppSettings {
@@ -190,7 +192,6 @@ impl Default for AppSettings {
             silence_threshold_percent: 4,
             silence_timeout_milliseconds: 1200,
             max_recording_seconds: 120,
-            input_device_index: None,
             start_with_windows: false,
             ui_language: AppLanguage::Russian,
             launch_minimized_to_tray: true,
@@ -200,13 +201,120 @@ impl Default for AppSettings {
             delay_before_paste_milliseconds: 80,
             delay_before_clipboard_restore_milliseconds: 300,
             log_level: "Information".to_string(),
-            temperature: 0.2,
-            request_timeout_seconds: 120,
         }
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct AppSettingsFile {
+    settings_version: u32,
+    active_api_profile_id: String,
+    api_profiles: Option<Vec<ApiProfile>>,
+    hotkey: String,
+    translation_hotkey: String,
+    recording_mode: RecordingMode,
+    silence_threshold_percent: u8,
+    silence_timeout_milliseconds: u64,
+    max_recording_seconds: u64,
+    start_with_windows: bool,
+    ui_language: AppLanguage,
+    launch_minimized_to_tray: bool,
+    show_floating_recording_window: bool,
+    enable_sounds: bool,
+    restore_clipboard_content: bool,
+    delay_before_paste_milliseconds: u64,
+    delay_before_clipboard_restore_milliseconds: u64,
+    log_level: String,
+    temperature: Option<f64>,
+    request_timeout_seconds: Option<u64>,
+}
+
+impl Default for AppSettingsFile {
+    fn default() -> Self {
+        let defaults = AppSettings::default();
+        Self {
+            settings_version: defaults.settings_version,
+            active_api_profile_id: defaults.active_api_profile_id,
+            api_profiles: None,
+            hotkey: defaults.hotkey,
+            translation_hotkey: defaults.translation_hotkey,
+            recording_mode: defaults.recording_mode,
+            silence_threshold_percent: defaults.silence_threshold_percent,
+            silence_timeout_milliseconds: defaults.silence_timeout_milliseconds,
+            max_recording_seconds: defaults.max_recording_seconds,
+            start_with_windows: defaults.start_with_windows,
+            ui_language: defaults.ui_language,
+            launch_minimized_to_tray: defaults.launch_minimized_to_tray,
+            show_floating_recording_window: defaults.show_floating_recording_window,
+            enable_sounds: defaults.enable_sounds,
+            restore_clipboard_content: defaults.restore_clipboard_content,
+            delay_before_paste_milliseconds: defaults.delay_before_paste_milliseconds,
+            delay_before_clipboard_restore_milliseconds: defaults
+                .delay_before_clipboard_restore_milliseconds,
+            log_level: defaults.log_level,
+            temperature: None,
+            request_timeout_seconds: None,
+        }
+    }
+}
+
+impl AppSettingsFile {
+    fn into_settings(self) -> AppSettings {
+        let had_profiles = self
+            .api_profiles
+            .as_ref()
+            .is_some_and(|profiles| !profiles.is_empty());
+        let legacy_temperature = self.temperature;
+        let legacy_timeout = self.request_timeout_seconds;
+
+        let mut settings = AppSettings {
+            settings_version: self.settings_version,
+            active_api_profile_id: self.active_api_profile_id,
+            api_profiles: self.api_profiles.unwrap_or_default(),
+            hotkey: self.hotkey,
+            translation_hotkey: self.translation_hotkey,
+            recording_mode: self.recording_mode,
+            silence_threshold_percent: self.silence_threshold_percent,
+            silence_timeout_milliseconds: self.silence_timeout_milliseconds,
+            max_recording_seconds: self.max_recording_seconds,
+            start_with_windows: self.start_with_windows,
+            ui_language: self.ui_language,
+            launch_minimized_to_tray: self.launch_minimized_to_tray,
+            show_floating_recording_window: self.show_floating_recording_window,
+            enable_sounds: self.enable_sounds,
+            restore_clipboard_content: self.restore_clipboard_content,
+            delay_before_paste_milliseconds: self.delay_before_paste_milliseconds,
+            delay_before_clipboard_restore_milliseconds: self
+                .delay_before_clipboard_restore_milliseconds,
+            log_level: self.log_level,
+        }
+        .normalized();
+
+        if !had_profiles && let Some(profile) = settings.api_profiles.first_mut() {
+            if let Some(temperature) = legacy_temperature {
+                profile.temperature = temperature;
+            }
+            if let Some(timeout) = legacy_timeout {
+                profile.request_timeout_seconds = timeout;
+            }
+        }
+
+        settings.normalized()
+    }
+}
+
+impl<'de> Deserialize<'de> for AppSettings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(AppSettingsFile::deserialize(deserializer)?.into_settings())
+    }
+}
+
 impl AppSettings {
+    /// Applies defaults, clamps unsafe values, normalizes hotkeys, and ensures built-in profiles exist.
     pub fn normalized(mut self) -> Self {
         self.settings_version = 8;
         self.hotkey = normalize_hotkey(&self.hotkey).unwrap_or_else(|_| "Ctrl+Space".to_string());
@@ -221,12 +329,9 @@ impl AppSettings {
             };
         }
 
-        self.temperature = clamp_f64((self.temperature * 10.0).round() / 10.0, 0.0, 1.0);
-        self.request_timeout_seconds = self.request_timeout_seconds.clamp(5, 600);
         self.silence_threshold_percent = self.silence_threshold_percent.min(100);
         self.silence_timeout_milliseconds = self.silence_timeout_milliseconds.clamp(100, 30_000);
         self.max_recording_seconds = self.max_recording_seconds.clamp(1, 3600);
-        self.input_device_index = None;
         self.launch_minimized_to_tray = true;
         self.show_floating_recording_window = true;
         self.delay_before_paste_milliseconds = self.delay_before_paste_milliseconds.min(5000);
@@ -240,10 +345,17 @@ impl AppSettings {
         }
         .to_string();
 
+        for profile in &mut self.api_profiles {
+            profile.temperature = (profile.temperature * 10.0).round() / 10.0;
+            profile.temperature = profile.temperature.clamp(0.0, 1.0);
+            profile.request_timeout_seconds = profile.request_timeout_seconds.clamp(5, 600);
+        }
+
         self.ensure_profiles();
         self
     }
 
+    /// Returns the active API profile, falling back to the first or default ai2npu profile.
     pub fn active_profile(&self) -> &ApiProfile {
         self.api_profiles
             .iter()
@@ -260,7 +372,7 @@ impl AppSettings {
         if !self
             .api_profiles
             .iter()
-            .any(|profile| profile.name.eq_ignore_ascii_case("ai2npu"))
+            .any(|profile| profile.id == "ai2npu" || profile.name.eq_ignore_ascii_case("ai2npu"))
         {
             self.api_profiles.push(ai2npu_profile());
         }
@@ -268,16 +380,6 @@ impl AppSettings {
         if !self.api_profiles.iter().any(is_groq_profile) {
             self.api_profiles.push(groq_profile());
         }
-
-        self.api_profiles.sort_by_key(|profile| {
-            if profile.name.eq_ignore_ascii_case("ai2npu") {
-                (0, profile.name.to_ascii_lowercase())
-            } else if is_groq_profile(profile) {
-                (1, profile.name.to_ascii_lowercase())
-            } else {
-                (2, profile.name.to_ascii_lowercase())
-            }
-        });
 
         if self.active_api_profile_id.is_empty()
             || !self
@@ -326,10 +428,7 @@ fn is_groq_profile(profile: &ApiProfile) -> bool {
         || profile.base_url.to_ascii_lowercase().contains("groq.com")
 }
 
-fn clamp_f64(value: f64, min: f64, max: f64) -> f64 {
-    value.max(min).min(max)
-}
-
+/// Loads settings from disk, returning normalized defaults when no settings file exists.
 pub fn load_settings(paths: &AppPaths) -> anyhow::Result<AppSettings> {
     let path = paths.settings_path();
     if !path.exists() {
@@ -337,9 +436,15 @@ pub fn load_settings(paths: &AppPaths) -> anyhow::Result<AppSettings> {
     }
 
     let json = fs::read_to_string(path)?;
-    Ok(serde_json::from_str::<AppSettings>(&json)?.normalized())
+    settings_from_json(&json)
 }
 
+/// Deserializes settings JSON, including legacy top-level profile values.
+pub fn settings_from_json(json: &str) -> anyhow::Result<AppSettings> {
+    Ok(serde_json::from_str::<AppSettings>(json)?)
+}
+
+/// Saves settings as pretty JSON in the configured app data directory.
 pub fn save_settings(paths: &AppPaths, settings: &AppSettings) -> anyhow::Result<()> {
     fs::create_dir_all(paths.app_data_dir())?;
     let json = serde_json::to_string_pretty(settings)?;

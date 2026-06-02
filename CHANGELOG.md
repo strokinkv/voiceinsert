@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 2.0.0 - 2026-05-29
 
 - Replaced the application with the Rust + Slint implementation.
 - Changed the default local API profile to `ai2npu` at `http://localhost:9555`.
 - Removed obsolete project artifacts and stale documentation from the previous implementation.
+
+## Unreleased
+
+- No unreleased changes yet.
 
 ## 1.1.0
 
