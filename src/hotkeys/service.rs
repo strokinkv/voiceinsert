@@ -49,27 +49,24 @@ pub struct GlobalHotkeyEvents {
     registration: HotkeyRegistration,
     transcription: HotKey,
     translation: HotKey,
-    cancel: HotKey,
 }
 
 impl GlobalHotkeyEvents {
     pub fn register(transcription: &str, translation: &str) -> anyhow::Result<Self> {
         let registration = HotkeyRegistration::new(transcription, translation)?;
-        let transcription = parse_global_hotkey(&registration.transcription)?;
-        let translation = parse_global_hotkey(&registration.translation)?;
-        let cancel = cancel_hotkey()?;
+        let [transcription_value, translation_value] = registered_hotkeys(&registration);
+        let transcription = parse_global_hotkey(transcription_value)?;
+        let translation = parse_global_hotkey(translation_value)?;
         let manager = GlobalHotKeyManager::new()?;
 
         manager.register(transcription)?;
         manager.register(translation)?;
-        manager.register(cancel)?;
 
         Ok(Self {
             _manager: manager,
             registration,
             transcription,
             translation,
-            cancel,
         })
     }
 
@@ -82,7 +79,6 @@ impl Drop for GlobalHotkeyEvents {
     fn drop(&mut self) {
         let _ = self._manager.unregister(self.transcription);
         let _ = self._manager.unregister(self.translation);
-        let _ = self._manager.unregister(self.cancel);
     }
 }
 
@@ -95,9 +91,6 @@ impl HotkeyEvents for GlobalHotkeyEvents {
             }
             HotKeyState::Pressed if event.id == self.translation.id() => {
                 Some(HotkeyAction::TranslatePressed)
-            }
-            HotKeyState::Pressed if event.id == self.cancel.id() => {
-                Some(HotkeyAction::CancelPressed)
             }
             HotKeyState::Released
                 if event.id == self.transcription.id() || event.id == self.translation.id() =>
@@ -114,13 +107,16 @@ pub fn parse_global_hotkey(value: &str) -> anyhow::Result<HotKey> {
     Ok(normalized.parse()?)
 }
 
-fn cancel_hotkey() -> anyhow::Result<HotKey> {
-    Ok("Esc".parse()?)
+fn registered_hotkeys(registration: &HotkeyRegistration) -> [&str; 2] {
+    [
+        registration.transcription.as_str(),
+        registration.translation.as_str(),
+    ]
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{HotkeyRegistration, cancel_hotkey, parse_global_hotkey};
+    use super::{HotkeyRegistration, parse_global_hotkey, registered_hotkeys};
 
     #[test]
     fn registration_normalizes_hotkeys() {
@@ -143,7 +139,15 @@ mod tests {
     }
 
     #[test]
-    fn cancel_hotkey_is_escape_without_modifier() {
-        assert!(cancel_hotkey().is_ok());
+    fn registration_does_not_include_global_escape_hotkey() {
+        let registration = HotkeyRegistration::new("Ctrl+Space", "Alt+Y").unwrap();
+        let hotkeys = registered_hotkeys(&registration);
+
+        assert_eq!(hotkeys, ["Ctrl+Space", "Alt+Y"]);
+        assert!(
+            !hotkeys
+                .iter()
+                .any(|hotkey| hotkey.eq_ignore_ascii_case("Esc"))
+        );
     }
 }
