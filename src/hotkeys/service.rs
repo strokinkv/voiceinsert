@@ -6,7 +6,6 @@ use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 pub enum HotkeyAction {
     TranscribePressed,
     TranslatePressed,
-    CancelPressed,
     Released,
 }
 
@@ -32,15 +31,6 @@ impl HotkeyRegistration {
             transcription,
             translation,
         })
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct NoopHotkeyEvents;
-
-impl HotkeyEvents for NoopHotkeyEvents {
-    fn next_event(&mut self) -> Option<HotkeyAction> {
-        None
     }
 }
 

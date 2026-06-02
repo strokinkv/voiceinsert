@@ -72,17 +72,6 @@ impl VoiceInsertState {
         StateCommand::None
     }
 
-    pub fn cancel_recording(&mut self) -> StateCommand {
-        if matches!(self.state, OperationState::Recording(_)) {
-            self.state = OperationState::Idle;
-            self.elapsed_recording_ms = 0;
-            self.silent_for_ms = 0;
-            return StateCommand::CancelRecording;
-        }
-
-        StateCommand::None
-    }
-
     pub fn level_changed(&mut self, level: f32, delta_ms: u64) -> StateCommand {
         if !matches!(self.state, OperationState::Recording(_)) {
             return StateCommand::None;
@@ -142,7 +131,6 @@ pub enum StateCommand {
     None,
     StartRecording(AudioRequestKind),
     StopAndTranscribe(AudioRequestKind),
-    CancelRecording,
 }
 
 pub(super) fn log_error_message(error: &anyhow::Error) -> String {
@@ -237,18 +225,6 @@ mod tests {
             state.state(),
             OperationState::Recording(AudioRequestKind::Transcription)
         );
-    }
-
-    #[test]
-    fn cancel_recording_returns_to_idle_without_transcribing() {
-        let mut state = VoiceInsertState::new(RecordingMode::Toggle, 0.04, 1200, 120_000);
-
-        assert_eq!(
-            state.hotkey_pressed(AudioRequestKind::Transcription),
-            StateCommand::StartRecording(AudioRequestKind::Transcription)
-        );
-        assert_eq!(state.cancel_recording(), StateCommand::CancelRecording);
-        assert_eq!(state.state(), OperationState::Idle);
     }
 
     #[test]

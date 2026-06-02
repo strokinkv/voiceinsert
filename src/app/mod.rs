@@ -195,7 +195,6 @@ impl AppRuntime {
             HotkeyAction::TranslatePressed => {
                 self.state.hotkey_pressed(AudioRequestKind::Translation)
             }
-            HotkeyAction::CancelPressed => self.state.cancel_recording(),
             HotkeyAction::Released => self.state.hotkey_released(),
         };
 
@@ -225,13 +224,6 @@ impl AppRuntime {
                 self.ui.set_overlay_status("Transcribing")?;
                 let _ = self.sounds.play(SoundKind::Stop);
                 self.stop_recording_and_insert(kind)?;
-            }
-            StateCommand::CancelRecording => {
-                tracing::info!("recording cancelled");
-                self.stop_recording_without_insert();
-                self.tray.set_state(TrayState::Idle);
-                self.ui.hide_overlay();
-                let _ = self.sounds.play(SoundKind::Stop);
             }
         }
 
@@ -287,13 +279,6 @@ impl AppRuntime {
             self.background_tx.clone(),
         );
         Ok(())
-    }
-
-    fn stop_recording_without_insert(&mut self) {
-        if let Some(mut recorder) = self.recorder.take() {
-            let _ = recorder.stop();
-        }
-        self.level_rx = None;
     }
 
     fn process_background_events(&mut self) {
