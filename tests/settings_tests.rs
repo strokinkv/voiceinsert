@@ -246,3 +246,49 @@ fn normalization_preserves_existing_profile_order_after_rename() {
     assert_eq!(ids, ["custom", "ai2npu", "groq"]);
     assert_eq!(settings.active_profile().name, "Local NPU");
 }
+
+#[test]
+fn normalization_makes_profile_names_visible_and_unique() {
+    let settings = AppSettings {
+        active_api_profile_id: "one".to_string(),
+        api_profiles: vec![
+            voiceinsert::settings::ApiProfile {
+                id: "one".to_string(),
+                name: "Duplicate".to_string(),
+                base_url: "https://one.example/openai/".to_string(),
+                model: "whisper".to_string(),
+                language: String::new(),
+                temperature: 0.2,
+                request_timeout_seconds: 120,
+            },
+            voiceinsert::settings::ApiProfile {
+                id: "two".to_string(),
+                name: " duplicate ".to_string(),
+                base_url: "https://two.example/openai/".to_string(),
+                model: "whisper".to_string(),
+                language: String::new(),
+                temperature: 0.2,
+                request_timeout_seconds: 120,
+            },
+            voiceinsert::settings::ApiProfile {
+                id: "blank-id".to_string(),
+                name: "   ".to_string(),
+                base_url: "https://blank.example/openai/".to_string(),
+                model: "whisper".to_string(),
+                language: String::new(),
+                temperature: 0.2,
+                request_timeout_seconds: 120,
+            },
+        ],
+        ..AppSettings::default()
+    }
+    .normalized();
+
+    let names = settings
+        .api_profiles
+        .iter()
+        .map(|profile| profile.name.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(names[0..3], ["Duplicate", "duplicate (2)", "blank-id"]);
+}

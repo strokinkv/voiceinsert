@@ -394,6 +394,36 @@ impl AppSettings {
                 .map(|profile| profile.id.clone())
                 .unwrap_or_else(|| self.api_profiles[0].id.clone());
         }
+
+        self.ensure_unique_profile_names();
+    }
+
+    fn ensure_unique_profile_names(&mut self) {
+        let mut used_names = Vec::<String>::new();
+        for (index, profile) in self.api_profiles.iter_mut().enumerate() {
+            let base_name = if profile.name.trim().is_empty() {
+                if profile.id.trim().is_empty() {
+                    format!("profile-{}", index + 1)
+                } else {
+                    profile.id.trim().to_string()
+                }
+            } else {
+                profile.name.trim().to_string()
+            };
+
+            let mut candidate = base_name.clone();
+            let mut suffix = 2;
+            while used_names
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(&candidate))
+            {
+                candidate = format!("{base_name} ({suffix})");
+                suffix += 1;
+            }
+
+            profile.name = candidate.clone();
+            used_names.push(candidate);
+        }
     }
 }
 

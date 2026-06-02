@@ -10,6 +10,7 @@ pub(super) enum BackgroundEvent {
     Error(String),
     ModelsLoaded {
         profile_id: String,
+        request_id: u64,
         models: Vec<String>,
     },
     VoiceInsertionStarted,
@@ -76,6 +77,7 @@ pub(super) fn spawn_load_models_task(
     handle: tokio::runtime::Handle,
     http: reqwest::Client,
     profile_id: String,
+    request_id: u64,
     base_url: String,
     api_key: String,
     events: Sender<BackgroundEvent>,
@@ -86,6 +88,7 @@ pub(super) fn spawn_load_models_task(
                 let model_ids = models.into_iter().map(|model| model.id).collect();
                 let _ = events.send(BackgroundEvent::ModelsLoaded {
                     profile_id,
+                    request_id,
                     models: model_ids,
                 });
             }

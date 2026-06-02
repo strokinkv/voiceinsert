@@ -87,51 +87,60 @@ impl AppRuntime {
         )?;
         crate::api::endpoints::endpoint(&edit.base_url, "/v1/models")?;
 
-        let old_hotkey = self.settings.hotkey.clone();
-        let old_translation_hotkey = self.settings.translation_hotkey.clone();
+        let hotkeys_changed = self.settings.hotkey != edit.transcription_hotkey.trim()
+            || self.settings.translation_hotkey != edit.translation_hotkey.trim();
         let old_language = self.settings.ui_language;
         let active_profile_id = self.settings.active_api_profile_id.clone();
         let old_profile = self.settings.active_profile().clone();
         let old_api_key = api_key_for_profile(&self.api_keys, &active_profile_id).to_string();
         let api_key = edit.api_key.trim().to_string();
 
-        self.settings = apply_settings_edit(self.settings.clone(), edit).normalized();
+        let new_settings = apply_settings_edit(self.settings.clone(), edit).normalized();
+        let mut new_api_keys = self.api_keys.clone();
         if api_key.is_empty() {
-            self.api_keys.remove(&active_profile_id);
+            new_api_keys.remove(&active_profile_id);
         } else {
-            self.api_keys
-                .insert(active_profile_id.clone(), api_key.clone());
+            new_api_keys.insert(active_profile_id.clone(), api_key.clone());
         }
-        crate::secrets::save_api_keys(&self.paths, &self.api_keys)?;
 
-        if self.settings.hotkey != old_hotkey
-            || self.settings.translation_hotkey != old_translation_hotkey
-        {
-            self.hotkeys = GlobalHotkeyEvents::register(
-                &self.settings.hotkey,
-                &self.settings.translation_hotkey,
-            )?;
+        let new_hotkeys = if hotkeys_changed {
+            Some(GlobalHotkeyEvents::register(
+                &new_settings.hotkey,
+                &new_settings.translation_hotkey,
+            )?)
+        } else {
+            None
+        };
+        let new_http = http_client_for_profile(new_settings.active_profile())?;
+        let new_clipboard = ClipboardInserter {
+            restore_clipboard: new_settings.restore_clipboard_content,
+            delay_before_paste_ms: new_settings.delay_before_paste_milliseconds,
+            delay_before_restore_ms: new_settings.delay_before_clipboard_restore_milliseconds,
+        };
+        let new_state = super::state::VoiceInsertState::new(
+            new_settings.recording_mode,
+            f32::from(new_settings.silence_threshold_percent) / 100.0,
+            new_settings.silence_timeout_milliseconds,
+            new_settings.max_recording_seconds.saturating_mul(1000),
+        );
+        #[cfg(windows)]
+        crate::autostart::set_enabled(new_settings.start_with_windows, &std::env::current_exe()?)?;
+
+        crate::secrets::save_api_keys(&self.paths, &new_api_keys)?;
+        crate::settings::save_settings(&self.paths, &new_settings)?;
+
+        self.settings = new_settings;
+        self.api_keys = new_api_keys;
+        if let Some(new_hotkeys) = new_hotkeys {
+            self.hotkeys = new_hotkeys;
         }
         if self.settings.ui_language != old_language {
             self.tray.set_language(self.settings.ui_language);
         }
-        self.clipboard = ClipboardInserter {
-            restore_clipboard: self.settings.restore_clipboard_content,
-            delay_before_paste_ms: self.settings.delay_before_paste_milliseconds,
-            delay_before_restore_ms: self.settings.delay_before_clipboard_restore_milliseconds,
-        };
+        self.clipboard = new_clipboard;
         self.sounds.enabled = self.settings.enable_sounds;
-        self.state = super::state::VoiceInsertState::new(
-            self.settings.recording_mode,
-            f32::from(self.settings.silence_threshold_percent) / 100.0,
-            self.settings.silence_timeout_milliseconds,
-            self.settings.max_recording_seconds.saturating_mul(1000),
-        );
-        self.http = http_client_for_profile(self.settings.active_profile())?;
-        #[cfg(windows)]
-        crate::autostart::set_enabled(self.settings.start_with_windows, &std::env::current_exe()?)?;
-
-        crate::settings::save_settings(&self.paths, &self.settings)?;
+        self.state = new_state;
+        self.http = new_http;
         self.ui.set_profile_metadata(&self.settings);
 
         let new_profile = self.settings.active_profile();

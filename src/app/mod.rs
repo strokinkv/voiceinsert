@@ -53,6 +53,8 @@ pub struct AppRuntime {
     sounds: SoundService,
     clipboard: ClipboardInserter,
     model_options_profile_id: Option<String>,
+    model_options_request_id: Option<u64>,
+    next_model_options_request_id: u64,
     model_options: Vec<String>,
 }
 
@@ -108,6 +110,8 @@ impl AppRuntime {
             sounds,
             clipboard,
             model_options_profile_id: None,
+            model_options_request_id: None,
+            next_model_options_request_id: 0,
             model_options: Vec::new(),
         };
         runtime.queue_model_load_for_active_profile()?;
@@ -285,8 +289,17 @@ impl AppRuntime {
         loop {
             match self.background_rx.try_recv() {
                 Ok(BackgroundEvent::Error(message)) => self.ui.set_status(message),
-                Ok(BackgroundEvent::ModelsLoaded { profile_id, models }) => {
-                    if profile_id == self.settings.active_profile().id {
+                Ok(BackgroundEvent::ModelsLoaded {
+                    profile_id,
+                    request_id,
+                    models,
+                }) => {
+                    if should_apply_models_event(
+                        &self.settings.active_profile().id,
+                        self.model_options_request_id,
+                        &profile_id,
+                        request_id,
+                    ) {
                         self.model_options_profile_id = Some(profile_id);
                         self.model_options = models;
                         let current_model =
@@ -360,10 +373,13 @@ impl AppRuntime {
     fn queue_model_load_for_active_profile(&mut self) -> anyhow::Result<()> {
         let profile = self.settings.active_profile();
         let profile_id = profile.id.clone();
+        self.next_model_options_request_id = self.next_model_options_request_id.saturating_add(1);
+        let request_id = self.next_model_options_request_id;
         let base_url = profile.base_url.clone();
         let api_key = api_key_for_profile(&self.api_keys, &profile_id).to_string();
         let current_model = model_for_request(&profile.model).to_string();
         self.model_options_profile_id = Some(profile_id.clone());
+        self.model_options_request_id = Some(request_id);
         self.model_options.clear();
         self.ui
             .set_model_options(&current_model, &self.model_options);
@@ -371,12 +387,22 @@ impl AppRuntime {
             self.tokio.handle().clone(),
             self.http.clone(),
             profile_id,
+            request_id,
             base_url,
             api_key,
             self.background_tx.clone(),
         );
         Ok(())
     }
+}
+
+fn should_apply_models_event(
+    active_profile_id: &str,
+    current_request_id: Option<u64>,
+    event_profile_id: &str,
+    event_request_id: u64,
+) -> bool {
+    event_profile_id == active_profile_id && current_request_id == Some(event_request_id)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -471,11 +497,11 @@ fn acquire_single_instance(_name: &str) -> anyhow::Result<SingleInstanceGuard> {
 
 #[cfg(test)]
 mod tests {
-    use super::SingleInstanceGuard;
     use super::commands::{
         api_key_for_profile, apply_settings_edit, model_for_request, profile_id_by_name,
         profile_requires_http_rebuild,
     };
+    use super::{SingleInstanceGuard, should_apply_models_event};
     use crate::settings::{ApiProfile, RecordingMode};
     use crate::ui::SettingsEdit;
     use std::collections::BTreeMap;
@@ -578,5 +604,13 @@ mod tests {
         };
 
         assert!(profile_requires_http_rebuild(&old_profile, &new_profile));
+    }
+
+    #[test]
+    fn models_event_only_applies_to_latest_active_profile_request() {
+        assert!(should_apply_models_event("ai2npu", Some(3), "ai2npu", 3));
+        assert!(!should_apply_models_event("ai2npu", Some(3), "ai2npu", 2));
+        assert!(!should_apply_models_event("ai2npu", Some(3), "groq", 3));
+        assert!(!should_apply_models_event("ai2npu", None, "ai2npu", 1));
     }
 }
