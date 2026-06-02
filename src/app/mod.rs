@@ -21,9 +21,7 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::time::Duration;
 
 use background::{AudioTask, BackgroundEvent, spawn_load_models_task, spawn_voice_insert_task};
-use commands::{
-    api_key_for_profile, http_client_for_profile, model_for_request,
-};
+use commands::{api_key_for_profile, http_client_for_profile, model_for_request};
 use state::{StateCommand, VoiceInsertState, log_error_message};
 
 /// Starts the single-instance VoiceInsert runtime and enters the Slint event loop.
@@ -493,7 +491,7 @@ mod tests {
         api_key_for_profile, apply_settings_edit, model_for_request, profile_id_by_name,
         profile_requires_http_rebuild,
     };
-    use crate::settings::{ApiProfile, AppLanguage, RecordingMode};
+    use crate::settings::{ApiProfile, RecordingMode};
     use crate::ui::SettingsEdit;
     use std::collections::BTreeMap;
 

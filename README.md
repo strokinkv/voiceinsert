@@ -80,7 +80,7 @@ Normal transcription is not translated by VoiceInsert. If the transcription endp
 - API keys are protected with Windows DPAPI per profile.
 - Audio and recognized text are not saved to disk.
 - Logs do not contain audio, recognized text, or API keys.
-- Settings use sidebar navigation, compact profile controls, one model field, and a global status bar.
+- Settings use a single-screen card layout without tabs or scrolling. API language input is not shown; audio requests default to Russian (`ru`) as the input language.
 - VoiceInsert always records from the current system default microphone.
 - The `Logs` section shows the logs folder, log level, and last error for the current app session.
 
