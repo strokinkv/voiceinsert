@@ -21,7 +21,7 @@ The design must keep the settings readable while reducing navigation cost. The u
 - Cards have no group titles and no icons.
 - Individual field labels remain explicit.
 
-The normal state contains only the setting cards. Errors appear as a toast overlay above the content and must not move or resize the card layout.
+The normal state contains only the setting cards. Errors appear as a centered toast overlay above the card panel and must not move or resize the card layout.
 
 ## Visual Style
 
@@ -51,6 +51,8 @@ Recommended card placement:
 - An insertion card in the lower area where it best fits the masonry grid.
 
 The API card can be wider because it contains long values such as `Base URL`, `API key`, and `Model`. This is a content fit decision, not a visual priority signal.
+
+Outer spacing should be tight: minimize the distance from the cards to the window edges while preserving a clean visual margin. Use roughly `14px` to `18px` outer padding rather than the larger sidebar-era spacing.
 
 ## Field Presentation
 
@@ -137,8 +139,9 @@ Model and active profile remain dropdowns as they already are.
 Replace persistent status text with toast-style messages:
 
 - Toast appears only when there is an error or a user-visible problem.
-- Toast overlays the content near the upper-right area.
+- Toast overlays the card panel in the center of the window.
 - Toast does not shift the layout.
+- Toast is visually above all settings cards.
 - Routine autosave success does not need a permanent visible status.
 
 If later implementation needs non-error feedback, use the same toast mechanism sparingly.

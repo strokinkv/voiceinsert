@@ -17,7 +17,7 @@
 - Modify `src/ui.rs`: remove `SettingsEdit.language`, stop setting/reading the Slint `language` property, keep profile metadata behavior.
 - Modify `src/app/commands.rs`: stop copying UI language edits into `ApiProfile.language`; existing stored values remain in settings files for compatibility.
 - Modify `src/app/mod.rs`: pass `None` for `AudioTask.language` in normal runtime requests and let `send_audio` apply the default.
-- Modify `ui/components.slint`: add vertical field/dropdown helpers, compact card helpers, hint marker, and toast presentation; keep existing components if still used elsewhere.
+- Modify `ui/components.slint`: add vertical field/dropdown helpers, compact card helpers, hint marker, and centered toast presentation; keep existing components if still used elsewhere.
 - Modify `ui/settings.slint`: remove sidebar/page switching and render the one-screen masonry layout.
 - Modify `README.md` and `README_ru.md`: update the settings-window behavior and mention default Russian input language.
 
@@ -429,8 +429,8 @@ export component Toast inherits Rectangle {
     in property <string> message: "";
 
     visible: root.message != "";
-    width: 360px;
-    height: 46px;
+    width: 420px;
+    height: 54px;
     background: #fff6f2;
     border-color: #e2ad9b;
     border-width: 1px;
@@ -565,10 +565,10 @@ Replace the current `HorizontalLayout { ... }` body with this fixed masonry layo
         height: parent.height;
 
         SettingsCard {
-            x: 28px;
-            y: 28px;
-            width: 520px;
-            height: 438px;
+            x: 16px;
+            y: 16px;
+            width: 540px;
+            height: 452px;
 
             VerticalLayout {
                 padding: 20px;
@@ -605,10 +605,10 @@ Replace the current `HorizontalLayout { ... }` body with this fixed masonry layo
         }
 
         SettingsCard {
-            x: 568px;
-            y: 28px;
-            width: 430px;
-            height: 438px;
+            x: 572px;
+            y: 16px;
+            width: 442px;
+            height: 452px;
 
             VerticalLayout {
                 padding: 20px;
@@ -632,10 +632,10 @@ Replace the current `HorizontalLayout { ... }` body with this fixed masonry layo
         }
 
         SettingsCard {
-            x: 1018px;
-            y: 28px;
-            width: 314px;
-            height: 210px;
+            x: 1030px;
+            y: 16px;
+            width: 344px;
+            height: 218px;
 
             VerticalLayout {
                 padding: 20px;
@@ -652,10 +652,10 @@ Replace the current `HorizontalLayout { ... }` body with this fixed masonry layo
         }
 
         SettingsCard {
-            x: 1018px;
-            y: 258px;
-            width: 314px;
-            height: 208px;
+            x: 1030px;
+            y: 250px;
+            width: 344px;
+            height: 218px;
 
             VerticalLayout {
                 padding: 20px;
@@ -672,10 +672,10 @@ Replace the current `HorizontalLayout { ... }` body with this fixed masonry layo
         }
 
         SettingsCard {
-            x: 28px;
-            y: 486px;
-            width: 520px;
-            height: 222px;
+            x: 16px;
+            y: 484px;
+            width: 540px;
+            height: 230px;
 
             VerticalLayout {
                 padding: 20px;
@@ -687,8 +687,8 @@ Replace the current `HorizontalLayout { ... }` body with this fixed masonry layo
         }
 
         Toast {
-            x: parent.width - self.width - 28px;
-            y: 728px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
             message: root.status-text;
         }
     }
@@ -717,10 +717,11 @@ and:
                     options: root.log-level-options;
 ```
 
-If `self.width` fails in `Toast`, replace the `x` binding with:
+If `self.width` fails in `Toast`, replace the centered bindings with:
 
 ```slint
-            x: parent.width - 360px - 28px;
+            x: (parent.width - 420px) / 2;
+            y: (parent.height - 54px) / 2;
 ```
 
 - [ ] **Step 6: Commit**
@@ -894,6 +895,7 @@ Expected visual checks:
 
 - Window is `1360x800`.
 - No sidebar, tabs, title header, app name, active-profile header, bottom status bar, or scrollbars.
+- Card outer spacing is tight, roughly `14px` to `18px` from the window edges.
 - Cards have no group headings or icons.
 - All agreed fields are visible.
 - `Language / Язык распознавания` is absent.
@@ -901,7 +903,7 @@ Expected visual checks:
 - Toggle controls remain toggles.
 - Log folder path is not displayed.
 - `Открыть папку логов` works.
-- Error toast overlays the content and does not shift cards.
+- Error toast overlays the center of the settings panel and does not shift cards.
 
 - [ ] **Step 3: Commit any final fixes**
 
