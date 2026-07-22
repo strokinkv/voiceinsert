@@ -2,7 +2,7 @@ use reqwest::Url;
 
 pub fn endpoint(base_url: &str, path: &str) -> anyhow::Result<Url> {
     let base = base_url.trim();
-    if base.contains("/v1/audio/transcriptions") || base.contains("/v1/audio/translations") {
+    if base.contains("/v1/audio/transcriptions") {
         anyhow::bail!("Base URL must not include an audio endpoint");
     }
 
@@ -31,18 +31,6 @@ mod tests {
         let error = endpoint(
             "https://api.example.com/v1/audio/transcriptions",
             "/v1/audio/transcriptions",
-        )
-        .unwrap_err()
-        .to_string();
-
-        assert!(error.contains("Base URL must not include an audio endpoint"));
-    }
-
-    #[test]
-    fn endpoint_rejects_full_translation_endpoint_as_base_url() {
-        let error = endpoint(
-            "https://api.example.com/v1/audio/translations",
-            "/v1/audio/translations",
         )
         .unwrap_err()
         .to_string();

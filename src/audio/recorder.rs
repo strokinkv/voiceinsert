@@ -1,4 +1,4 @@
-use crate::audio::levels::peak_level_i16;
+use crate::audio::levels::{mean_absolute_level_i16, peak_level_i16};
 use anyhow::Context;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{I24, SampleFormat, SampleRate, Stream, StreamConfig};
@@ -45,6 +45,20 @@ pub struct Recorder {
     stream: Option<Stream>,
     samples: Arc<Mutex<Vec<i16>>>,
     capture_sample_rate: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordedAudio {
+    pub wav_bytes: Vec<u8>,
+    pub sample_count: usize,
+    pub peak_level: f32,
+    pub mean_absolute_level: f32,
+}
+
+impl RecordedAudio {
+    pub fn duration_ms(&self) -> u64 {
+        frame_duration_ms(self.sample_count, TARGET_SAMPLE_RATE)
+    }
 }
 
 impl Recorder {
@@ -299,6 +313,10 @@ impl Recorder {
     }
 
     pub fn stop(&mut self) -> anyhow::Result<Vec<u8>> {
+        Ok(self.stop_recorded()?.wav_bytes)
+    }
+
+    pub fn stop_recorded(&mut self) -> anyhow::Result<RecordedAudio> {
         self.stream.take();
         let samples = self
             .samples
@@ -306,8 +324,16 @@ impl Recorder {
             .expect("recorder samples lock poisoned")
             .clone();
         let samples = resample_linear_i16(&samples, self.capture_sample_rate, TARGET_SAMPLE_RATE);
+        let sample_count = samples.len();
+        let peak_level = peak_level_i16(&samples);
+        let mean_absolute_level = mean_absolute_level_i16(&samples);
 
-        encode_wav_mono_i16(&samples, TARGET_SAMPLE_RATE)
+        Ok(RecordedAudio {
+            wav_bytes: encode_wav_mono_i16(&samples, TARGET_SAMPLE_RATE)?,
+            sample_count,
+            peak_level,
+            mean_absolute_level,
+        })
     }
 }
 

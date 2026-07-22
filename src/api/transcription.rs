@@ -4,12 +4,6 @@ use serde::Deserialize;
 pub const AUDIO_RESPONSE_FORMAT: &str = "json";
 pub const DEFAULT_INPUT_LANGUAGE: &str = "ru";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AudioRequestKind {
-    Transcription,
-    Translation,
-}
-
 #[derive(Debug, Deserialize)]
 struct AudioTextResponse {
     text: Option<String>,
@@ -41,23 +35,13 @@ pub struct SendAudioRequest<'a> {
     pub language: Option<&'a str>,
     pub temperature: Option<f64>,
     pub wav_bytes: Vec<u8>,
-    pub kind: AudioRequestKind,
 }
 
-pub fn sanitize_api_error(
-    kind: AudioRequestKind,
-    model: &str,
-    status: u16,
-    reason: &str,
-    response_body: &str,
-) -> String {
+pub fn sanitize_api_error(model: &str, status: u16, reason: &str, response_body: &str) -> String {
     let mut message = format!("Audio API request failed: {status} {reason}. Model: {model}.");
     if let Some(api_message) = safe_api_error_message(response_body) {
         message.push(' ');
         message.push_str(&api_message);
-    }
-    if kind == AudioRequestKind::Translation {
-        message.push_str(" The selected model may not support audio translation.");
     }
     message
 }
@@ -77,19 +61,12 @@ fn safe_api_error_message(response_body: &str) -> Option<String> {
     }
 }
 
-pub fn audio_endpoint_path(kind: AudioRequestKind) -> &'static str {
-    match kind {
-        AudioRequestKind::Transcription => "/v1/audio/transcriptions",
-        AudioRequestKind::Translation => "/v1/audio/translations",
-    }
-}
+pub const AUDIO_TRANSCRIPTION_ENDPOINT_PATH: &str = "/v1/audio/transcriptions";
 
 pub async fn send_audio(
     http: &reqwest::Client,
     audio: SendAudioRequest<'_>,
 ) -> anyhow::Result<String> {
-    let path = audio_endpoint_path(audio.kind);
-
     let file = reqwest::multipart::Part::bytes(audio.wav_bytes)
         .file_name("recording.wav")
         .mime_str("audio/wav")?;
@@ -115,7 +92,9 @@ pub async fn send_audio(
         form = form.text("temperature", temperature.to_string());
     }
 
-    let mut request = http.post(endpoint(audio.base_url, path)?).multipart(form);
+    let mut request = http
+        .post(endpoint(audio.base_url, AUDIO_TRANSCRIPTION_ENDPOINT_PATH)?)
+        .multipart(form);
     if !audio.api_key.trim().is_empty() {
         request = request.bearer_auth(audio.api_key);
     }
@@ -127,7 +106,7 @@ pub async fn send_audio(
         let body = response.text().await.unwrap_or_default();
         anyhow::bail!(
             "{}",
-            sanitize_api_error(audio.kind, audio.model, status.as_u16(), reason, &body)
+            sanitize_api_error(audio.model, status.as_u16(), reason, &body)
         );
     }
 
@@ -137,19 +116,15 @@ pub async fn send_audio(
 #[cfg(test)]
 mod tests {
     use super::{
-        AUDIO_RESPONSE_FORMAT, AudioRequestKind, AudioTextResponse, audio_endpoint_path,
+        AUDIO_RESPONSE_FORMAT, AUDIO_TRANSCRIPTION_ENDPOINT_PATH, AudioTextResponse,
         safe_api_error_message, sanitize_api_error,
     };
 
     #[test]
-    fn audio_endpoint_path_matches_request_kind() {
+    fn audio_endpoint_path_matches_transcription_endpoint() {
         assert_eq!(
-            audio_endpoint_path(AudioRequestKind::Transcription),
+            AUDIO_TRANSCRIPTION_ENDPOINT_PATH,
             "/v1/audio/transcriptions"
-        );
-        assert_eq!(
-            audio_endpoint_path(AudioRequestKind::Translation),
-            "/v1/audio/translations"
         );
     }
 
@@ -159,27 +134,8 @@ mod tests {
     }
 
     #[test]
-    fn translation_error_mentions_model_without_response_body() {
-        let message = sanitize_api_error(
-            AudioRequestKind::Translation,
-            "whisper-large-v3",
-            422,
-            "Unprocessable Entity",
-            r#"{"text":"private recognized user text","api_key":"sk-secret"}"#,
-        );
-
-        assert!(message.contains("422"));
-        assert!(message.contains("Unprocessable Entity"));
-        assert!(message.contains("whisper-large-v3"));
-        assert!(message.contains("may not support audio translation"));
-        assert!(!message.contains("private recognized user text"));
-        assert!(!message.contains("sk-secret"));
-    }
-
-    #[test]
     fn api_error_body_includes_safe_error_message() {
         let message = sanitize_api_error(
-            AudioRequestKind::Transcription,
             "openai/whisper-large-v3-turbo",
             500,
             "Internal Server Error",
@@ -199,9 +155,8 @@ mod tests {
     }
 
     #[test]
-    fn transcription_error_does_not_add_translation_hint() {
+    fn transcription_error_omits_private_response_body() {
         let message = sanitize_api_error(
-            AudioRequestKind::Transcription,
             "whisper-large-v3",
             500,
             "Internal Server Error",
@@ -210,7 +165,6 @@ mod tests {
 
         assert!(message.contains("500"));
         assert!(message.contains("whisper-large-v3"));
-        assert!(!message.contains("may not support audio translation"));
         assert!(!message.contains("private text"));
     }
 

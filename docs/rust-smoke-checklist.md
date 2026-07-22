@@ -16,13 +16,11 @@ Use this checklist on Windows 11 after antivirus handling for Cargo `target/` is
 - [ ] `ai2npu` uses `openai/whisper-large-v3-turbo`.
 - [ ] Model loading calls `GET {base_url}/v1/models`.
 - [ ] Transcription calls `POST {base_url}/v1/audio/transcriptions`.
-- [ ] Translation calls `POST {base_url}/v1/audio/translations`.
 - [ ] Audio requests send WAV as mono 16 kHz signed 16-bit PCM with `response_format=json`.
-- [ ] Translation failure logs model and support hint without response body text.
 - [ ] `Ctrl+Space` starts transcription.
-- [ ] `Alt+Y` starts translation.
 - [ ] `Toggle`, `Hold`, and `Silence timeout` behave per spec.
-- [ ] Overlay waveform appears and resets between recordings.
+- [ ] Overlay shows centered localized status and compact waveform.
+- [ ] Overlay waveform appears, stays colorized during silence, and resets between recordings.
 - [ ] Clipboard insertion works in Notepad.
 - [ ] Logs omit API key, audio, recognized text, and response body.
 - [ ] Silent install works with `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`.

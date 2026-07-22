@@ -1,6 +1,6 @@
 use super::state::log_error_message;
 use crate::api::models::load_models;
-use crate::api::transcription::{AudioRequestKind, SendAudioRequest, send_audio};
+use crate::api::transcription::{SendAudioRequest, send_audio};
 use crate::clipboard::ClipboardInserter;
 use std::future::Future;
 use std::sync::mpsc::Sender;
@@ -24,7 +24,6 @@ pub(super) struct AudioTask {
     pub(super) language: Option<String>,
     pub(super) temperature: f64,
     pub(super) wav_bytes: Vec<u8>,
-    pub(super) kind: AudioRequestKind,
     pub(super) target_window: Option<isize>,
 }
 
@@ -44,7 +43,6 @@ pub(super) fn spawn_voice_insert_task(
                 language,
                 temperature,
                 wav_bytes,
-                kind,
                 target_window,
             } = task;
 
@@ -57,7 +55,6 @@ pub(super) fn spawn_voice_insert_task(
                     language: language.as_deref(),
                     temperature: Some(temperature),
                     wav_bytes,
-                    kind,
                 },
             )
             .await?;

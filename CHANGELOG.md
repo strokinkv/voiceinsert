@@ -8,7 +8,9 @@
 
 ## Unreleased
 
-- No unreleased changes yet.
+- Redesigned the recording overlay as a compact localized status + waveform window.
+- Removed the old silence recolor and separate `live` / `silent` overlay labels.
+- Slowed waveform propagation and tightened amplitude bar spacing.
 
 ## 1.1.0
 

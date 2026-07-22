@@ -63,6 +63,7 @@ impl RuntimeTray {
         let tray_icon = tray_icon::TrayIconBuilder::new()
             .with_tooltip("VoiceInsert")
             .with_menu(Box::new(menu.clone()))
+            .with_menu_on_left_click(false)
             .with_icon(default_icon()?)
             .build()?;
 
@@ -77,6 +78,30 @@ impl RuntimeTray {
     }
 
     pub fn next_command(&mut self) -> Option<TrayCommand> {
+        if let Some(command) = self.next_tray_icon_command() {
+            return Some(command);
+        }
+
+        self.next_menu_command()
+    }
+
+    fn next_tray_icon_command(&self) -> Option<TrayCommand> {
+        let event = tray_icon::TrayIconEvent::receiver().try_recv().ok()?;
+        match event {
+            tray_icon::TrayIconEvent::Click {
+                button: tray_icon::MouseButton::Left,
+                button_state: tray_icon::MouseButtonState::Up,
+                ..
+            }
+            | tray_icon::TrayIconEvent::DoubleClick {
+                button: tray_icon::MouseButton::Left,
+                ..
+            } => Some(TrayCommand::Settings),
+            _ => None,
+        }
+    }
+
+    fn next_menu_command(&self) -> Option<TrayCommand> {
         let event = tray_icon::menu::MenuEvent::receiver().try_recv().ok()?;
         if event.id == self.settings_item.id() {
             Some(TrayCommand::Settings)

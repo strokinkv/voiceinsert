@@ -1,5 +1,5 @@
 import {
-    SettingsCard, SmallButton, TinyButton, Toast, ToggleRow, VerticalCombo, VerticalField
+    CompactCombo, HotkeyCaptureField, SmallButton, TinyButton, ToggleRow, VerticalCombo, VerticalField, VeryCompactField
 } from "./components.slint";
 
 export component SettingsWindow inherits Window {
@@ -7,40 +7,49 @@ export component SettingsWindow inherits Window {
     in-out property <string> api-base-url: "";
     in-out property <string> model-name: "";
     in-out property <[string]> model-options: [];
+    in-out property <int> model-index: 0;
     in-out property <string> active-profile-name: "";
     in-out property <[string]> api-profile-options: [];
-    in-out property <string> profile-name: "";
+    in-out property <int> active-profile-index: 0;
     in-out property <string> api-key: "";
     in-out property <string> temperature: "";
     in-out property <string> request-timeout-seconds: "";
     in-out property <string> transcription-hotkey: "";
-    in-out property <string> translation-hotkey: "";
     in-out property <string> recording-mode: "";
+    in-out property <int> recording-mode-index: 0;
     in-out property <string> silence-threshold-percent: "";
     in-out property <string> silence-timeout-milliseconds: "";
     in-out property <string> max-recording-seconds: "";
     in-out property <bool> start-with-windows: false;
     in-out property <string> ui-language: "";
+    in-out property <int> ui-language-index: 0;
     in-out property <bool> enable-sounds: true;
     in-out property <bool> restore-clipboard-content: true;
     in-out property <string> delay-before-paste-milliseconds: "";
     in-out property <string> delay-before-clipboard-restore-milliseconds: "";
     in-out property <string> log-level: "";
-    property <bool> is-russian: root.ui-language == "Russian";
+    in-out property <int> log-level-index: 0;
+    property <bool> is-russian: root.ui-language != "English";
     in-out property <[string]> recording-mode-options: [];
     in-out property <[string]> ui-language-options: [];
     in-out property <[string]> log-level-options: [];
+    in-out property <bool> capturing-transcription-hotkey: false;
 
     callback settings-changed();
     callback add-api-profile();
     callback delete-api-profile();
     callback select-api-profile(profile-name: string);
     callback open-logs-folder();
+    callback capture-transcription-hotkey(key: string, control: bool, alt: bool, shift: bool, meta: bool) -> bool;
 
     title: "VoiceInsert";
-    icon: @image-url("../assets/VoiceInsert.ico");
-    width: 1360px;
-    height: 800px;
+    icon: @image-url("../assets/VoiceInsert.png");
+    preferred-width: 700px;
+    preferred-height: 570px;
+    min-width: 700px;
+    min-height: 570px;
+    max-width: 700px;
+    max-height: 570px;
     background: #eef3f8;
 
     Rectangle {
@@ -48,132 +57,164 @@ export component SettingsWindow inherits Window {
         width: parent.width;
         height: parent.height;
 
-        SettingsCard {
-            x: 16px;
-            y: 16px;
-            width: 540px;
-            height: 452px;
-
-            VerticalLayout {
-                padding: 20px;
-                spacing: 12px;
-
-                HorizontalLayout {
-                    height: 57px;
-                    spacing: 8px;
-
-                    VerticalCombo {
-                        label: root.is-russian ? "Активный профиль" : "Active profile";
-                        value <=> root.active-profile-name;
-                        options: root.api-profile-options;
-                        horizontal-stretch: 1;
-                        selected(value) => { root.select-api-profile(value); }
-                    }
-
-                    TinyButton { label: "+"; clicked => { root.add-api-profile(); } }
-                    TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
-                }
-
-                VerticalField { label: root.is-russian ? "Имя профиля" : "Profile name"; value <=> root.profile-name; edited => { root.settings-changed(); } }
-                VerticalField { label: "Base URL"; value <=> root.api-base-url; edited => { root.settings-changed(); } }
-                VerticalField { label: "API key"; value <=> root.api-key; edited => { root.settings-changed(); } }
-                VerticalCombo { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; options: root.model-options; selected(value) => { root.settings-changed(); } }
-
-                HorizontalLayout {
-                    height: 57px;
-                    spacing: 12px;
-                    VerticalField { label: root.is-russian ? "Температура" : "Temperature"; hint: root.is-russian ? "0.0-1.0, ниже стабильнее" : "0.0-1.0, lower is steadier"; value <=> root.temperature; horizontal-stretch: 1; edited => { root.settings-changed(); } }
-                    VerticalField { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; hint: root.is-russian ? "Время ожидания API" : "API request timeout"; value <=> root.request-timeout-seconds; horizontal-stretch: 1; edited => { root.settings-changed(); } }
-                }
-            }
-        }
-
-        SettingsCard {
-            x: 572px;
-            y: 16px;
-            width: 442px;
-            height: 452px;
-
-            VerticalLayout {
-                padding: 20px;
-                spacing: 12px;
-
-                VerticalField { label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey"; value <=> root.transcription-hotkey; edited => { root.settings-changed(); } }
-                VerticalField { label: root.is-russian ? "Клавиша перевода" : "Translation hotkey"; value <=> root.translation-hotkey; edited => { root.settings-changed(); } }
-                VerticalCombo {
-                    label: root.is-russian ? "Режим записи" : "Recording mode";
-                    value <=> root.recording-mode;
-                    options: root.recording-mode-options;
-                    selected(value) => {
-                        root.recording-mode = value;
-                        root.settings-changed();
-                    }
-                }
-                VerticalField { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; hint: root.is-russian ? "Уровень, ниже которого звук считается тишиной" : "Level treated as silence"; value <=> root.silence-threshold-percent; edited => { root.settings-changed(); } }
-                VerticalField { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; hint: root.is-russian ? "Сколько ждать тишину перед остановкой" : "Silence duration before stop"; value <=> root.silence-timeout-milliseconds; edited => { root.settings-changed(); } }
-                VerticalField { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; hint: root.is-russian ? "Жесткий лимит одной записи" : "Hard limit for one recording"; value <=> root.max-recording-seconds; edited => { root.settings-changed(); } }
-            }
-        }
-
-        SettingsCard {
-            x: 1030px;
-            y: 16px;
-            width: 314px;
-            height: 218px;
-
-            VerticalLayout {
-                padding: 20px;
-                spacing: 12px;
-                ToggleRow { label: root.is-russian ? "Запускать вместе с Windows" : "Start with Windows"; checked <=> root.start-with-windows; toggled => { root.settings-changed(); } }
-                ToggleRow { label: root.is-russian ? "Звуковое оповещение" : "Sound alerts"; checked <=> root.enable-sounds; toggled => { root.settings-changed(); } }
-                VerticalCombo {
-                    label: root.is-russian ? "Язык интерфейса" : "Interface language";
-                    value <=> root.ui-language;
-                    options: root.ui-language-options;
-                    selected(value) => { root.ui-language = value; root.settings-changed(); }
-                }
-            }
-        }
-
-        SettingsCard {
-            x: 1030px;
-            y: 250px;
-            width: 314px;
-            height: 218px;
-
-            VerticalLayout {
-                padding: 20px;
-                spacing: 14px;
-                SmallButton { label: root.is-russian ? "Открыть папку логов" : "Open logs folder"; width: 180px; clicked => { root.open-logs-folder(); } }
-                VerticalCombo {
-                    label: root.is-russian ? "Уровень логов" : "Log level";
-                    hint: root.is-russian ? "Детальность диагностических сообщений" : "Diagnostic message detail";
-                    value <=> root.log-level;
-                    options: root.log-level-options;
-                    selected(value) => { root.log-level = value; root.settings-changed(); }
-                }
-            }
-        }
-
-        SettingsCard {
-            x: 16px;
-            y: 484px;
-            width: 540px;
-            height: 230px;
-
-            VerticalLayout {
-                padding: 20px;
-                spacing: 12px;
-                ToggleRow { label: root.is-russian ? "Восстанавливать буфер" : "Restore clipboard"; checked <=> root.restore-clipboard-content; toggled => { root.settings-changed(); } }
-                VerticalField { label: root.is-russian ? "Задержка перед вставкой, мс" : "Delay before paste, ms"; hint: root.is-russian ? "Пауза перед отправкой вставки" : "Pause before paste"; value <=> root.delay-before-paste-milliseconds; edited => { root.settings-changed(); } }
-                VerticalField { label: root.is-russian ? "Задержка перед восстановлением, мс" : "Delay before restore, ms"; hint: root.is-russian ? "Пауза перед возвратом прежнего буфера" : "Pause before restoring clipboard"; value <=> root.delay-before-clipboard-restore-milliseconds; edited => { root.settings-changed(); } }
-            }
-        }
-
-        Toast {
+        settings-list := VerticalLayout {
             x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            message: root.status-text;
+            y: 20px;
+            width: min(parent.width - 56px, 644px);
+            spacing: 8px;
+
+                    HotkeyCaptureField {
+                        label: root.is-russian ? "Клавиша транскрибации" : "Transcription hotkey";
+                        capture-label: root.is-russian ? "Захват" : "Capture";
+                        capturing-label: root.is-russian ? "Жду..." : "Press...";
+                        capturing <=> root.capturing-transcription-hotkey;
+                        value <=> root.transcription-hotkey;
+                        edited => { root.settings-changed(); }
+                        capture-clicked => {
+                            root.capturing-transcription-hotkey = true;
+                            hotkey-capture-focus.focus();
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 34px;
+                        spacing: 8px;
+
+                        VerticalCombo {
+                            label: root.is-russian ? "Активный профиль" : "Active profile";
+                            value <=> root.active-profile-name;
+                            selected-index <=> root.active-profile-index;
+                            options: root.api-profile-options;
+                            horizontal-stretch: 1;
+                            selected(value) => { root.select-api-profile(value); }
+                        }
+
+                        TinyButton { label: "+"; clicked => { root.add-api-profile(); } }
+                        TinyButton { label: "-"; clicked => { root.delete-api-profile(); } }
+                    }
+
+                    VerticalField { label: "Base URL"; value <=> root.api-base-url; edited => { root.settings-changed(); } }
+                    VerticalField { label: "API key"; value <=> root.api-key; edited => { root.settings-changed(); } }
+                    VerticalCombo { label: root.is-russian ? "Модель" : "Model"; value <=> root.model-name; selected-index <=> root.model-index; options: root.model-options; selected(value) => { root.settings-changed(); } }
+
+                    HorizontalLayout {
+                        width: parent.width;
+                        height: 286px;
+                        spacing: 16px;
+
+                        VerticalLayout {
+                            width: (parent.width - 33px) * 44 / 100;
+                            spacing: 8px;
+
+                            VeryCompactField { label: root.is-russian ? "Температура" : "Temperature"; hint: root.is-russian ? "0.0-1.0, ниже стабильнее" : "0.0-1.0, lower is steadier"; value <=> root.temperature; edited => { root.settings-changed(); } }
+                            VeryCompactField { label: root.is-russian ? "Таймаут, сек" : "Timeout, sec"; hint: root.is-russian ? "Время ожидания API" : "API request timeout"; value <=> root.request-timeout-seconds; edited => { root.settings-changed(); } }
+                            VeryCompactField { label: root.is-russian ? "Порог тишины, %" : "Silence threshold, %"; hint: root.is-russian ? "Уровень, ниже которого звук считается тишиной" : "Level treated as silence"; value <=> root.silence-threshold-percent; edited => { root.settings-changed(); } }
+                            VeryCompactField { label: root.is-russian ? "Таймаут тишины, мс" : "Silence timeout, ms"; hint: root.is-russian ? "Сколько ждать тишину перед остановкой" : "Silence duration before stop"; value <=> root.silence-timeout-milliseconds; edited => { root.settings-changed(); } }
+                            VeryCompactField { label: root.is-russian ? "Макс. длительность, сек" : "Max duration, sec"; hint: root.is-russian ? "Жесткий лимит одной записи" : "Hard limit for one recording"; value <=> root.max-recording-seconds; edited => { root.settings-changed(); } }
+                            VeryCompactField { label: root.is-russian ? "Задержка вставки, мс" : "Paste delay, ms"; hint: root.is-russian ? "Пауза перед отправкой вставки" : "Pause before paste"; value <=> root.delay-before-paste-milliseconds; edited => { root.settings-changed(); } }
+                            VeryCompactField { label: root.is-russian ? "Задержка буфера, мс" : "Clipboard delay, ms"; hint: root.is-russian ? "Пауза перед возвратом прежнего буфера" : "Pause before restoring clipboard"; value <=> root.delay-before-clipboard-restore-milliseconds; edited => { root.settings-changed(); } }
+                        }
+
+                        Rectangle {
+                            width: 1px;
+                            height: parent.height;
+                            background: #c8d4ce;
+                        }
+
+                        VerticalLayout {
+                            width: (parent.width - 33px) * 56 / 100;
+                            spacing: 8px;
+
+                            CompactCombo {
+                                width: parent.width;
+                                label: root.is-russian ? "Режим записи" : "Recording mode";
+                                value <=> root.recording-mode;
+                                selected-index <=> root.recording-mode-index;
+                                options: root.recording-mode-options;
+                                selected(value) => {
+                                    root.recording-mode = value;
+                                    root.settings-changed();
+                                }
+                            }
+                            ToggleRow { width: parent.width; label: root.is-russian ? "Запускать вместе с Windows" : "Start with Windows"; checked <=> root.start-with-windows; toggled => { root.settings-changed(); } }
+                            ToggleRow { width: parent.width; label: root.is-russian ? "Звуковое оповещение" : "Sound alerts"; checked <=> root.enable-sounds; toggled => { root.settings-changed(); } }
+                            CompactCombo {
+                                width: parent.width;
+                                label: root.is-russian ? "Язык интерфейса" : "Interface language";
+                                value <=> root.ui-language;
+                                selected-index <=> root.ui-language-index;
+                                options: root.ui-language-options;
+                                selected(value) => { root.ui-language = value; root.settings-changed(); }
+                            }
+                            CompactCombo {
+                                width: parent.width;
+                                label: root.is-russian ? "Уровень логов" : "Log level";
+                                hint: root.is-russian ? "Детальность диагностических сообщений" : "Diagnostic message detail";
+                                value <=> root.log-level;
+                                selected-index <=> root.log-level-index;
+                                options: root.log-level-options;
+                                selected(value) => { root.log-level = value; root.settings-changed(); }
+                            }
+                            ToggleRow { width: parent.width; label: root.is-russian ? "Восстанавливать буфер" : "Restore clipboard"; checked <=> root.restore-clipboard-content; toggled => { root.settings-changed(); } }
+                            HorizontalLayout {
+                                width: parent.width;
+                                height: 34px;
+                                Rectangle { background: transparent; horizontal-stretch: 1; }
+                                SmallButton { label: root.is-russian ? "Открыть папку логов" : "Open logs folder"; width: 170px; clicked => { root.open-logs-folder(); } }
+                            }
+                        }
+                    }
+        }
+
+        status-line := Rectangle {
+            x: settings-list.x;
+            y: parent.height - 38px;
+            width: settings-list.width;
+            height: 24px;
+            background: transparent;
+
+            TextInput {
+                text <=> root.status-text;
+                width: parent.width;
+                height: parent.height;
+                color: #77402f;
+                font-size: 12px;
+                vertical-alignment: center;
+                single-line: true;
+                read-only: true;
+            }
+        }
+
+        hotkey-capture-focus := FocusScope {
+            x: 0;
+            y: 0;
+            width: 0;
+            height: 0;
+            focus-on-click: false;
+            focus-on-tab-navigation: false;
+
+            changed has-focus => {
+                if (!self.has-focus) {
+                    root.capturing-transcription-hotkey = false;
+                }
+            }
+
+            key-pressed(event) => {
+                if (!root.capturing-transcription-hotkey) {
+                    return reject;
+                }
+
+                if (root.capture-transcription-hotkey(
+                    event.text,
+                    event.modifiers.control,
+                    event.modifiers.alt,
+                    event.modifiers.shift,
+                    event.modifiers.meta,
+                )) {
+                    root.capturing-transcription-hotkey = false;
+                }
+                return accept;
+            }
         }
     }
 }

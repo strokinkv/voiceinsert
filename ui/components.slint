@@ -6,6 +6,7 @@ export component Label inherits Text {
     text: label;
     color: #66746e;
     font-size: 13px;
+    overflow: elide;
 }
 
 export component Field inherits Rectangle {
@@ -91,7 +92,7 @@ export component ToggleRow inherits HorizontalLayout {
     in-out property <bool> checked: false;
     callback toggled();
 
-    height: 30px;
+    height: 34px;
     horizontal-stretch: 1;
     spacing: 12px;
 
@@ -129,20 +130,26 @@ export component ToggleRow inherits HorizontalLayout {
     }
 }
 
-export component HintLabel inherits HorizontalLayout {
+export component HintLabel inherits Rectangle {
     in property <string> label: "";
     in property <string> hint: "";
 
-    height: 18px;
-    spacing: 6px;
+    height: 34px;
+    background: transparent;
 
     Label {
         label: root.label;
+        x: 0;
+        y: 0;
+        width: root.hint != "" ? parent.width - 24px : parent.width;
+        height: parent.height;
         vertical-alignment: center;
     }
 
     Rectangle {
         visible: root.hint != "";
+        x: parent.width - 16px;
+        y: (parent.height - self.height) / 2;
         width: 16px;
         height: 16px;
         background: hint-touch.has-hover ? #dbe7f5 : #eef3f8;
@@ -161,18 +168,45 @@ export component HintLabel inherits HorizontalLayout {
 
         hint-touch := TouchArea { width: parent.width; height: parent.height; }
     }
+
+    Rectangle {
+        visible: root.hint != "" && hint-touch.has-hover;
+        x: max(parent.width - self.width, 0px);
+        y: -42px;
+        width: 238px;
+        height: 36px;
+        background: #1f2a28;
+        border-radius: 6px;
+
+        Text {
+            text: root.hint;
+            x: 10px;
+            y: 5px;
+            width: parent.width - 20px;
+            height: parent.height - 10px;
+            color: #ffffff;
+            font-size: 11px;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+    }
 }
 
-export component VerticalField inherits VerticalLayout {
+export component VerticalField inherits HorizontalLayout {
     in property <string> label: "";
     in property <string> hint: "";
     in-out property <string> value: "";
     callback edited();
 
-    spacing: 5px;
-    height: 57px;
+    spacing: 12px;
+    height: 34px;
 
-    HintLabel { label: root.label; hint: root.hint; }
+    HintLabel {
+        label: root.label;
+        hint: root.hint;
+        width: 200px;
+    }
+
     Field {
         value <=> root.value;
         horizontal-stretch: 1;
@@ -180,33 +214,208 @@ export component VerticalField inherits VerticalLayout {
     }
 }
 
-export component VerticalCombo inherits VerticalLayout {
+export component HotkeyCaptureField inherits HorizontalLayout {
     in property <string> label: "";
-    in property <string> hint: "";
+    in property <string> capture-label: "";
+    in property <string> capturing-label: "";
     in-out property <string> value: "";
-    in property <[string]> options: [];
-    callback selected(value: string);
+    in-out property <bool> capturing: false;
+    callback edited();
+    callback capture-clicked();
 
-    spacing: 5px;
-    height: 57px;
+    spacing: 12px;
+    height: 34px;
 
-    HintLabel { label: root.label; hint: root.hint; }
-    ComboBox {
-        model: root.options;
-        current-value <=> root.value;
+    HintLabel {
+        label: root.label;
+        width: 200px;
+    }
+
+    Field {
+        value <=> root.value;
         horizontal-stretch: 1;
-        selected(value) => {
-            root.value = value;
-            root.selected(value);
+        edited => { root.edited(); }
+    }
+
+    SmallButton {
+        label: root.capturing ? root.capturing-label : root.capture-label;
+        width: 82px;
+        clicked => {
+            root.capture-clicked();
         }
     }
 }
 
-export component SettingsCard inherits Rectangle {
-    background: #ffffff;
-    border-color: #d8e0ea;
-    border-width: 1px;
-    border-radius: 8px;
+export component VerticalCombo inherits HorizontalLayout {
+    in property <string> label: "";
+    in property <string> hint: "";
+    in-out property <string> value: "";
+    in-out property <int> selected-index: 0;
+    in property <[string]> options: [];
+    callback selected(value: string);
+
+    spacing: 12px;
+    height: 34px;
+
+    HintLabel {
+        label: root.label;
+        hint: root.hint;
+        width: 200px;
+    }
+
+    Rectangle {
+        height: 34px;
+        horizontal-stretch: 1;
+        background: #ffffff;
+        border-color: #c8d4ce;
+        border-width: 1px;
+        border-radius: 6px;
+
+        ComboBox {
+            width: parent.width;
+            height: parent.height;
+            model: root.options;
+            current-index <=> root.selected-index;
+            horizontal-stretch: 1;
+            selected(value) => {
+                root.value = value;
+                root.selected(value);
+            }
+        }
+
+        Text {
+            text: root.value;
+            x: 12px;
+            y: 0;
+            width: parent.width - 44px;
+            height: parent.height;
+            color: #1f2a28;
+            font-size: 14px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            text: "v";
+            x: parent.width - 28px;
+            y: 0;
+            width: 16px;
+            height: parent.height;
+            color: #66746e;
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component CompactField inherits HorizontalLayout {
+    in property <string> label: "";
+    in property <string> hint: "";
+    in-out property <string> value: "";
+    callback edited();
+
+    spacing: 10px;
+    height: 34px;
+    horizontal-stretch: 1;
+
+    HintLabel {
+        label: root.label;
+        hint: root.hint;
+        horizontal-stretch: 1;
+    }
+
+    Field {
+        value <=> root.value;
+        width: 118px;
+        edited => { root.edited(); }
+    }
+}
+
+export component VeryCompactField inherits HorizontalLayout {
+    in property <string> label: "";
+    in property <string> hint: "";
+    in-out property <string> value: "";
+    callback edited();
+
+    spacing: 8px;
+    height: 34px;
+    horizontal-stretch: 1;
+
+    HintLabel {
+        label: root.label;
+        hint: root.hint;
+        horizontal-stretch: 1;
+    }
+
+    Field {
+        value <=> root.value;
+        width: 86px;
+        edited => { root.edited(); }
+    }
+}
+
+export component CompactCombo inherits HorizontalLayout {
+    in property <string> label: "";
+    in property <string> hint: "";
+    in-out property <string> value: "";
+    in-out property <int> selected-index: 0;
+    in property <[string]> options: [];
+    callback selected(value: string);
+
+    spacing: 10px;
+    height: 34px;
+    horizontal-stretch: 1;
+
+    HintLabel {
+        label: root.label;
+        hint: root.hint;
+        horizontal-stretch: 1;
+    }
+
+    Rectangle {
+        width: 168px;
+        height: 34px;
+        background: #ffffff;
+        border-color: #c8d4ce;
+        border-width: 1px;
+        border-radius: 6px;
+
+        ComboBox {
+            width: parent.width;
+            height: parent.height;
+            model: root.options;
+            current-index <=> root.selected-index;
+            selected(value) => {
+                root.value = value;
+                root.selected(value);
+            }
+        }
+
+        Text {
+            text: root.value;
+            x: 12px;
+            y: 0;
+            width: parent.width - 44px;
+            height: parent.height;
+            color: #1f2a28;
+            font-size: 14px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            text: "v";
+            x: parent.width - 28px;
+            y: 0;
+            width: 16px;
+            height: parent.height;
+            color: #66746e;
+            font-size: 13px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
 }
 
 export component Toast inherits Rectangle {

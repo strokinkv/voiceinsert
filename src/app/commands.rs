@@ -81,14 +81,10 @@ impl AppRuntime {
             return Ok(false);
         };
 
-        crate::hotkeys::matcher::validate_pair(
-            &edit.transcription_hotkey,
-            &edit.translation_hotkey,
-        )?;
+        crate::hotkeys::matcher::normalize_hotkey(&edit.transcription_hotkey)?;
         crate::api::endpoints::endpoint(&edit.base_url, "/v1/models")?;
 
-        let hotkeys_changed = self.settings.hotkey != edit.transcription_hotkey.trim()
-            || self.settings.translation_hotkey != edit.translation_hotkey.trim();
+        let hotkeys_changed = self.settings.hotkey != edit.transcription_hotkey.trim();
         let old_language = self.settings.ui_language;
         let active_profile_id = self.settings.active_api_profile_id.clone();
         let old_profile = self.settings.active_profile().clone();
@@ -104,10 +100,7 @@ impl AppRuntime {
         }
 
         let new_hotkeys = if hotkeys_changed {
-            Some(GlobalHotkeyEvents::register(
-                &new_settings.hotkey,
-                &new_settings.translation_hotkey,
-            )?)
+            Some(GlobalHotkeyEvents::register(&new_settings.hotkey)?)
         } else {
             None
         };
@@ -134,14 +127,19 @@ impl AppRuntime {
         if let Some(new_hotkeys) = new_hotkeys {
             self.hotkeys = new_hotkeys;
         }
-        if self.settings.ui_language != old_language {
+        let language_changed = self.settings.ui_language != old_language;
+        if language_changed {
             self.tray.set_language(self.settings.ui_language);
         }
         self.clipboard = new_clipboard;
         self.sounds.enabled = self.settings.enable_sounds;
         self.state = new_state;
         self.http = new_http;
-        self.ui.set_profile_metadata(&self.settings);
+        if language_changed {
+            self.reopen_settings();
+        } else {
+            self.ui.set_profile_metadata(&self.settings);
+        }
 
         let new_profile = self.settings.active_profile();
         Ok(old_profile.base_url != new_profile.base_url
@@ -162,7 +160,6 @@ impl AppRuntime {
 
 pub(super) fn apply_settings_edit(mut settings: AppSettings, edit: SettingsEdit) -> AppSettings {
     settings.hotkey = edit.transcription_hotkey.trim().to_string();
-    settings.translation_hotkey = edit.translation_hotkey.trim().to_string();
     settings.recording_mode = parse_recording_mode(&edit.recording_mode);
     settings.silence_threshold_percent = parse_or_keep(
         &edit.silence_threshold_percent,
@@ -196,7 +193,6 @@ pub(super) fn apply_settings_edit(mut settings: AppSettings, edit: SettingsEdit)
         .iter_mut()
         .find(|profile| profile.id == active_profile_id)
     {
-        profile.name = edit.profile_name.trim().to_string();
         profile.base_url = edit.base_url.trim().to_string();
         profile.model = edit.model.trim().to_string();
         profile.temperature = parse_or_keep(&edit.temperature, profile.temperature);

@@ -22,6 +22,7 @@ if (Test-Path -LiteralPath $publishDir) {
 New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
 Copy-Item -LiteralPath $releaseExe -Destination (Join-Path $publishDir "VoiceInsert.exe") -Force
 Copy-Item -LiteralPath (Join-Path $root "assets\VoiceInsert.ico") -Destination $publishDir -Force
+Copy-Item -LiteralPath (Join-Path $root "assets\VoiceInsert.png") -Destination $publishDir -Force
 Copy-Item -LiteralPath (Join-Path $root "assets\record-start.wav") -Destination $publishDir -Force
 Copy-Item -LiteralPath (Join-Path $root "assets\record-stop.wav") -Destination $publishDir -Force
 Copy-Item -LiteralPath (Join-Path $root "assets\record-error.wav") -Destination $publishDir -Force

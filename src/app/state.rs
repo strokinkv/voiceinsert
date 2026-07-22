@@ -1,12 +1,11 @@
-use crate::api::transcription::AudioRequestKind;
 use crate::audio::levels::should_stop_on_silence;
 use crate::settings::RecordingMode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationState {
     Idle,
-    Recording(AudioRequestKind),
-    Transcribing(AudioRequestKind),
+    Recording,
+    Transcribing,
     Inserting,
     Error,
 }
@@ -45,26 +44,25 @@ impl VoiceInsertState {
         self.state
     }
 
-    pub fn hotkey_pressed(&mut self, request_kind: AudioRequestKind) -> StateCommand {
+    pub fn hotkey_pressed(&mut self) -> StateCommand {
         match (self.recording_mode, self.state) {
             (RecordingMode::Hold, OperationState::Idle)
             | (RecordingMode::Hold, OperationState::Error)
             | (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Idle)
             | (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Error) => {
-                self.start_recording(request_kind);
-                StateCommand::StartRecording(request_kind)
+                self.start_recording();
+                StateCommand::StartRecording
             }
-            (
-                RecordingMode::Toggle | RecordingMode::SilenceTimeout,
-                OperationState::Recording(_),
-            ) => self.stop_for_transcription(),
+            (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Recording) => {
+                self.stop_for_transcription()
+            }
             _ => StateCommand::None,
         }
     }
 
     pub fn hotkey_released(&mut self) -> StateCommand {
         if self.recording_mode == RecordingMode::Hold
-            && matches!(self.state, OperationState::Recording(_))
+            && matches!(self.state, OperationState::Recording)
         {
             return self.stop_for_transcription();
         }
@@ -73,7 +71,7 @@ impl VoiceInsertState {
     }
 
     pub fn level_changed(&mut self, level: f32, delta_ms: u64) -> StateCommand {
-        if !matches!(self.state, OperationState::Recording(_)) {
+        if !matches!(self.state, OperationState::Recording) {
             return StateCommand::None;
         }
 
@@ -110,16 +108,16 @@ impl VoiceInsertState {
         self.state = OperationState::Error;
     }
 
-    fn start_recording(&mut self, request_kind: AudioRequestKind) {
-        self.state = OperationState::Recording(request_kind);
+    fn start_recording(&mut self) {
+        self.state = OperationState::Recording;
         self.elapsed_recording_ms = 0;
         self.silent_for_ms = 0;
     }
 
     fn stop_for_transcription(&mut self) -> StateCommand {
-        if let OperationState::Recording(kind) = self.state {
-            self.state = OperationState::Transcribing(kind);
-            return StateCommand::StopAndTranscribe(kind);
+        if let OperationState::Recording = self.state {
+            self.state = OperationState::Transcribing;
+            return StateCommand::StopAndTranscribe;
         }
 
         StateCommand::None
@@ -129,8 +127,8 @@ impl VoiceInsertState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateCommand {
     None,
-    StartRecording(AudioRequestKind),
-    StopAndTranscribe(AudioRequestKind),
+    StartRecording,
+    StopAndTranscribe,
 }
 
 pub(super) fn log_error_message(error: &anyhow::Error) -> String {
@@ -145,57 +143,44 @@ pub(super) fn sanitize_log_text(message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{OperationState, StateCommand, VoiceInsertState};
-    use crate::api::transcription::AudioRequestKind;
     use crate::settings::RecordingMode;
 
     #[test]
     fn toggle_press_starts_then_stops_recording() {
         let mut state = VoiceInsertState::new(RecordingMode::Toggle, 0.04, 1200, 120_000);
 
-        assert_eq!(
-            state.hotkey_pressed(AudioRequestKind::Transcription),
-            StateCommand::StartRecording(AudioRequestKind::Transcription)
-        );
-        assert_eq!(
-            state.hotkey_pressed(AudioRequestKind::Transcription),
-            StateCommand::StopAndTranscribe(AudioRequestKind::Transcription)
-        );
+        assert_eq!(state.hotkey_pressed(), StateCommand::StartRecording);
+        assert_eq!(state.hotkey_pressed(), StateCommand::StopAndTranscribe);
     }
 
     #[test]
     fn hold_release_stops_recording() {
         let mut state = VoiceInsertState::new(RecordingMode::Hold, 0.04, 1200, 120_000);
 
-        state.hotkey_pressed(AudioRequestKind::Translation);
+        state.hotkey_pressed();
 
-        assert_eq!(
-            state.hotkey_released(),
-            StateCommand::StopAndTranscribe(AudioRequestKind::Translation)
-        );
+        assert_eq!(state.hotkey_released(), StateCommand::StopAndTranscribe);
     }
 
     #[test]
     fn toggle_ignores_silence_timeout() {
         let mut state = VoiceInsertState::new(RecordingMode::Toggle, 0.5, 100, 120_000);
 
-        state.hotkey_pressed(AudioRequestKind::Transcription);
+        state.hotkey_pressed();
 
         assert_eq!(state.level_changed(0.0, 1000), StateCommand::None);
-        assert_eq!(
-            state.state(),
-            OperationState::Recording(AudioRequestKind::Transcription)
-        );
+        assert_eq!(state.state(), OperationState::Recording);
     }
 
     #[test]
     fn silence_timeout_mode_stops_on_silence() {
         let mut state = VoiceInsertState::new(RecordingMode::SilenceTimeout, 0.5, 100, 120_000);
 
-        state.hotkey_pressed(AudioRequestKind::Transcription);
+        state.hotkey_pressed();
 
         assert_eq!(
             state.level_changed(0.0, 100),
-            StateCommand::StopAndTranscribe(AudioRequestKind::Transcription)
+            StateCommand::StopAndTranscribe
         );
     }
 
@@ -203,11 +188,11 @@ mod tests {
     fn max_duration_stops_all_recording_modes() {
         let mut state = VoiceInsertState::new(RecordingMode::Hold, 0.5, 1000, 250);
 
-        state.hotkey_pressed(AudioRequestKind::Transcription);
+        state.hotkey_pressed();
 
         assert_eq!(
             state.level_changed(1.0, 250),
-            StateCommand::StopAndTranscribe(AudioRequestKind::Transcription)
+            StateCommand::StopAndTranscribe
         );
     }
 
@@ -217,14 +202,8 @@ mod tests {
 
         state.mark_error();
 
-        assert_eq!(
-            state.hotkey_pressed(AudioRequestKind::Transcription),
-            StateCommand::StartRecording(AudioRequestKind::Transcription)
-        );
-        assert_eq!(
-            state.state(),
-            OperationState::Recording(AudioRequestKind::Transcription)
-        );
+        assert_eq!(state.hotkey_pressed(), StateCommand::StartRecording);
+        assert_eq!(state.state(), OperationState::Recording);
     }
 
     #[test]

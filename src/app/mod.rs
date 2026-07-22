@@ -5,12 +5,12 @@ mod background;
 mod commands;
 mod state;
 
-use crate::api::transcription::AudioRequestKind;
-use crate::audio::recorder::{Recorder, RecorderConfig};
+use crate::audio::recorder::{RecordedAudio, Recorder, RecorderConfig};
 use crate::clipboard::ClipboardInserter;
-use crate::hotkeys::service::{GlobalHotkeyEvents, HotkeyAction, HotkeyEvents};
+use crate::hotkeys::service::{GlobalHotkeyEvents, HotkeyAction, HotkeyEvents, is_copilot_hotkey};
+use crate::i18n::texts;
 use crate::paths::AppPaths;
-use crate::settings::AppSettings;
+use crate::settings::{AppSettings, RecordingMode};
 use crate::sounds::{SoundKind, SoundService};
 use crate::tray::{RuntimeTray, TrayCommand, TrayState};
 use crate::ui::UiController;
@@ -81,7 +81,7 @@ impl AppRuntime {
         );
         let tray = RuntimeTray::new(settings.ui_language)?;
         let ui = UiController::new();
-        let hotkeys = GlobalHotkeyEvents::register(&settings.hotkey, &settings.translation_hotkey)?;
+        let hotkeys = GlobalHotkeyEvents::register(&settings.hotkey)?;
         let clipboard = ClipboardInserter {
             restore_clipboard: settings.restore_clipboard_content,
             delay_before_paste_ms: settings.delay_before_paste_milliseconds,
@@ -152,14 +152,20 @@ impl AppRuntime {
     }
 
     fn try_tick(&mut self) -> anyhow::Result<()> {
+        self.ui.advance_overlay_wave();
+
         if let Some(command) = self.tray.next_command()
             && self.handle_tray_command(command)?
         {
             slint::quit_event_loop()?;
         }
 
-        if let Some(action) = self.hotkeys.next_event() {
-            self.handle_hotkey_action(action);
+        while let Some(action) = self.hotkeys.next_event() {
+            if action == HotkeyAction::CopilotPressed && self.ui.capture_copilot_hotkey() {
+                tracing::info!("copilot hotkey captured from low-level hook");
+            } else {
+                self.handle_hotkey_action(action);
+            }
         }
 
         for command in self.ui.drain_commands() {
@@ -193,13 +199,19 @@ impl AppRuntime {
 
     fn handle_hotkey_action(&mut self, action: HotkeyAction) {
         let command = match action {
-            HotkeyAction::TranscribePressed => {
-                self.state.hotkey_pressed(AudioRequestKind::Transcription)
-            }
-            HotkeyAction::TranslatePressed => {
-                self.state.hotkey_pressed(AudioRequestKind::Translation)
-            }
+            HotkeyAction::TranscribePressed => self.state.hotkey_pressed(),
             HotkeyAction::Released => self.state.hotkey_released(),
+            HotkeyAction::CopilotPressed if is_copilot_hotkey(&self.settings.hotkey) => {
+                self.state.hotkey_pressed()
+            }
+            HotkeyAction::CopilotReleased if is_copilot_hotkey(&self.settings.hotkey) => {
+                if self.settings.recording_mode == RecordingMode::Hold {
+                    self.state.hotkey_released()
+                } else {
+                    self.state.hotkey_pressed()
+                }
+            }
+            HotkeyAction::CopilotPressed | HotkeyAction::CopilotReleased => StateCommand::None,
         };
 
         if let Err(error) = self.apply_state_command(command) {
@@ -215,19 +227,21 @@ impl AppRuntime {
     fn apply_state_command(&mut self, command: StateCommand) -> anyhow::Result<()> {
         match command {
             StateCommand::None => {}
-            StateCommand::StartRecording(kind) => {
-                tracing::info!(?kind, "recording started");
+            StateCommand::StartRecording => {
+                tracing::info!("recording started");
                 self.start_recording()?;
-                self.ui.show_recording_overlay()?;
+                self.ui
+                    .show_recording_overlay(texts(self.settings.ui_language).recording)?;
                 self.tray.set_state(TrayState::Recording);
                 let _ = self.sounds.play(SoundKind::Start);
             }
-            StateCommand::StopAndTranscribe(kind) => {
-                tracing::info!(?kind, "recording stopped");
+            StateCommand::StopAndTranscribe => {
+                tracing::info!("recording stopped");
                 self.tray.set_state(TrayState::Transcribing);
-                self.ui.set_overlay_status("Transcribing")?;
+                self.ui
+                    .set_overlay_status(texts(self.settings.ui_language).transcribing)?;
                 let _ = self.sounds.play(SoundKind::Stop);
-                self.stop_recording_and_insert(kind)?;
+                self.stop_recording_and_insert()?;
             }
         }
 
@@ -257,13 +271,28 @@ impl AppRuntime {
         Ok(())
     }
 
-    fn stop_recording_and_insert(&mut self, kind: AudioRequestKind) -> anyhow::Result<()> {
-        let wav_bytes = match self.recorder.as_mut() {
-            Some(recorder) => recorder.stop()?,
+    fn stop_recording_and_insert(&mut self) -> anyhow::Result<()> {
+        let audio = match self.recorder.as_mut() {
+            Some(recorder) => recorder.stop_recorded()?,
             None => anyhow::bail!("recording stop requested but recorder is not active"),
         };
         self.recorder = None;
         self.level_rx = None;
+
+        if should_skip_transcription(&audio, self.state.silence_threshold) {
+            tracing::info!(
+                duration_ms = audio.duration_ms(),
+                peak_level = audio.peak_level,
+                mean_absolute_level = audio.mean_absolute_level,
+                "recording skipped because no speech was detected"
+            );
+            self.state.mark_idle();
+            self.tray.set_state(TrayState::Idle);
+            self.ui.hide_overlay();
+            self.ui
+                .set_status(texts(self.settings.ui_language).no_speech_detected);
+            return Ok(());
+        }
 
         let profile = self.settings.active_profile();
         spawn_voice_insert_task(
@@ -276,8 +305,7 @@ impl AppRuntime {
                 model: model_for_request(&profile.model).to_string(),
                 language: None,
                 temperature: profile.temperature,
-                wav_bytes,
-                kind,
+                wav_bytes: audio.wav_bytes,
                 target_window: active_window(),
             },
             self.background_tx.clone(),
@@ -310,7 +338,9 @@ impl AppRuntime {
                 }
                 Ok(BackgroundEvent::VoiceInsertionStarted) => {
                     self.state.mark_inserting();
-                    let _ = self.ui.set_overlay_status("Inserting");
+                    let _ = self
+                        .ui
+                        .set_overlay_status(texts(self.settings.ui_language).inserting);
                 }
                 Ok(BackgroundEvent::VoiceInsertionComplete(Ok(()))) => {
                     self.state.mark_idle();
@@ -343,8 +373,7 @@ impl AppRuntime {
         }
 
         for sample in levels {
-            self.ui
-                .set_overlay_level(sample.level, self.state.silence_threshold);
+            self.ui.set_overlay_level(sample.level);
             let command = self.state.level_changed(sample.level, sample.delta_ms);
             if let Err(error) = self.apply_state_command(command) {
                 let message = log_error_message(&error);
@@ -394,6 +423,16 @@ impl AppRuntime {
         );
         Ok(())
     }
+}
+
+fn should_skip_transcription(audio: &RecordedAudio, silence_threshold: f32) -> bool {
+    if audio.duration_ms() < 400 {
+        return true;
+    }
+
+    let peak_floor = (silence_threshold * 0.5).max(0.015);
+    let mean_floor = (silence_threshold * 0.08).max(0.002);
+    audio.peak_level < peak_floor && audio.mean_absolute_level < mean_floor
 }
 
 fn should_apply_models_event(
@@ -501,7 +540,8 @@ mod tests {
         api_key_for_profile, apply_settings_edit, model_for_request, profile_id_by_name,
         profile_requires_http_rebuild,
     };
-    use super::{SingleInstanceGuard, should_apply_models_event};
+    use super::{SingleInstanceGuard, should_apply_models_event, should_skip_transcription};
+    use crate::audio::recorder::RecordedAudio;
     use crate::settings::{ApiProfile, RecordingMode};
     use crate::ui::SettingsEdit;
     use std::collections::BTreeMap;
@@ -548,14 +588,12 @@ mod tests {
         let settings = apply_settings_edit(
             settings,
             SettingsEdit {
-                profile_name: "ai2npu".to_string(),
                 base_url: " http://localhost:9555 ".to_string(),
                 api_key: String::new(),
                 model: " whisper-large-v3 ".to_string(),
                 temperature: "0.4".to_string(),
                 request_timeout_seconds: "45".to_string(),
                 transcription_hotkey: " Ctrl+Space ".to_string(),
-                translation_hotkey: " Alt+Y ".to_string(),
                 recording_mode: "Hold".to_string(),
                 silence_threshold_percent: "8".to_string(),
                 silence_timeout_milliseconds: "900".to_string(),
@@ -577,7 +615,6 @@ mod tests {
         assert_eq!(settings.active_profile().temperature, 0.4);
         assert_eq!(settings.active_profile().request_timeout_seconds, 45);
         assert_eq!(settings.hotkey, "Ctrl+Space");
-        assert_eq!(settings.translation_hotkey, "Alt+Y");
         assert_eq!(settings.recording_mode, RecordingMode::Hold);
         assert_eq!(settings.silence_threshold_percent, 8);
         assert_eq!(settings.silence_timeout_milliseconds, 900);
@@ -612,5 +649,29 @@ mod tests {
         assert!(!should_apply_models_event("ai2npu", Some(3), "ai2npu", 2));
         assert!(!should_apply_models_event("ai2npu", Some(3), "groq", 3));
         assert!(!should_apply_models_event("ai2npu", None, "ai2npu", 1));
+    }
+
+    #[test]
+    fn silent_audio_is_not_sent_to_transcription() {
+        let audio = RecordedAudio {
+            wav_bytes: Vec::new(),
+            sample_count: 16_000,
+            peak_level: 0.004,
+            mean_absolute_level: 0.001,
+        };
+
+        assert!(should_skip_transcription(&audio, 0.04));
+    }
+
+    #[test]
+    fn voice_like_audio_is_sent_to_transcription() {
+        let audio = RecordedAudio {
+            wav_bytes: Vec::new(),
+            sample_count: 16_000,
+            peak_level: 0.08,
+            mean_absolute_level: 0.01,
+        };
+
+        assert!(!should_skip_transcription(&audio, 0.04));
     }
 }

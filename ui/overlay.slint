@@ -1,32 +1,79 @@
 export component RecordingOverlay inherits Window {
     in-out property <string> status-text: "Recording";
-    in-out property <float> level: 0;
-    in-out property <bool> is-silent: false;
+    in-out property <int> wave-step: 0;
+    in-out property <float> wave-a: 0;
+    in-out property <float> wave-b: 0;
+    in-out property <float> wave-c: 0;
+    in-out property <float> wave-d: 0;
+    in-out property <float> wave-e: 0;
+    in-out property <float> wave-f: 0;
+    in-out property <float> wave-g: 0;
+    in-out property <float> wave-h: 0;
+    in-out property <float> wave-i: 0;
+    in-out property <float> wave-j: 0;
+    in-out property <float> wave-k: 0;
+    in-out property <float> wave-l: 0;
+    in-out property <float> wave-m: 0;
+    in-out property <float> wave-n: 0;
 
-    width: 360px;
-    height: 96px;
+    width: 180px;
+    height: 62px;
     always-on-top: true;
     no-frame: true;
     background: transparent;
 
     Rectangle {
-        background: #1f2a28cc;
+        background: #16211fcc;
+        border-color: #6fe4d055;
+        border-width: 1px;
         border-radius: 8px;
 
         VerticalLayout {
-            padding: 12px;
-            spacing: 8px;
+            padding-left: 12px;
+            padding-right: 12px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            spacing: 6px;
 
-            Text {
-                text: root.status-text;
-                color: #f8fbf9;
-                font-size: 14px;
+            Rectangle {
+                height: 18px;
+                background: transparent;
+
+                Text {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: 18px;
+                    text: root.status-text;
+                    color: #f7fbfa;
+                    font-size: 13px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    overflow: elide;
+                }
             }
 
             Rectangle {
                 height: 28px;
-                background: root.is-silent ? #66746e : #51b3a2;
-                width: max(8px, root.level * 320px);
+                background: #0d141333;
+                border-color: #ffffff18;
+                border-width: 1px;
+                border-radius: 6px;
+
+                Rectangle { x: 23px; y: 14px - max(4px, root.wave-a * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-a * 20px + 3px); background: root.wave-step == 0 ? #d8fff7 : #59cbbb; border-radius: 2px; }
+                Rectangle { x: 31px; y: 14px - max(4px, root.wave-b * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-b * 20px + 3px); background: root.wave-step == 1 ? #d8fff7 : #6fe4d0; border-radius: 2px; }
+                Rectangle { x: 39px; y: 14px - max(4px, root.wave-c * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-c * 20px + 3px); background: root.wave-step == 2 ? #d8fff7 : #4ab4a7; border-radius: 2px; }
+                Rectangle { x: 47px; y: 14px - max(4px, root.wave-d * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-d * 20px + 3px); background: root.wave-step == 3 ? #d8fff7 : #6fe4d0; border-radius: 2px; }
+                Rectangle { x: 55px; y: 14px - max(4px, root.wave-e * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-e * 20px + 3px); background: root.wave-step == 4 ? #d8fff7 : #59cbbb; border-radius: 2px; }
+                Rectangle { x: 63px; y: 14px - max(4px, root.wave-f * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-f * 20px + 3px); background: root.wave-step == 5 ? #d8fff7 : #7bf0dd; border-radius: 2px; }
+                Rectangle { x: 71px; y: 14px - max(4px, root.wave-g * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-g * 20px + 3px); background: root.wave-step == 6 ? #d8fff7 : #4ab4a7; border-radius: 2px; }
+                Rectangle { x: 79px; y: 14px - max(4px, root.wave-h * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-h * 20px + 3px); background: root.wave-step == 7 ? #d8fff7 : #6fe4d0; border-radius: 2px; }
+                Rectangle { x: 87px; y: 14px - max(4px, root.wave-i * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-i * 20px + 3px); background: root.wave-step == 8 ? #d8fff7 : #59cbbb; border-radius: 2px; }
+                Rectangle { x: 95px; y: 14px - max(4px, root.wave-j * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-j * 20px + 3px); background: root.wave-step == 9 ? #d8fff7 : #7bf0dd; border-radius: 2px; }
+                Rectangle { x: 103px; y: 14px - max(4px, root.wave-k * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-k * 20px + 3px); background: root.wave-step == 10 ? #d8fff7 : #4ab4a7; border-radius: 2px; }
+                Rectangle { x: 111px; y: 14px - max(4px, root.wave-l * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-l * 20px + 3px); background: root.wave-step == 11 ? #d8fff7 : #6fe4d0; border-radius: 2px; }
+                Rectangle { x: 119px; y: 14px - max(4px, root.wave-m * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-m * 20px + 3px); background: root.wave-step == 12 ? #d8fff7 : #59cbbb; border-radius: 2px; }
+                Rectangle { x: 127px; y: 14px - max(4px, root.wave-n * 20px + 3px) / 2; width: 3px; height: max(4px, root.wave-n * 20px + 3px); background: root.wave-step == 13 ? #d8fff7 : #6fe4d0; border-radius: 2px; }
             }
         }
     }

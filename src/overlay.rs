@@ -7,14 +7,24 @@ pub struct WorkArea {
     pub height: i32,
 }
 
+const DEFAULT_OVERLAY_WIDTH: i32 = 180;
+const DEFAULT_OVERLAY_HEIGHT: i32 = 62;
+
 /// Returns the primary monitor work area, excluding the taskbar when the platform reports it.
 pub fn primary_work_area() -> WorkArea {
     platform_work_area().unwrap_or_else(default_work_area)
 }
 
+/// Returns the primary monitor bounds including the taskbar.
+pub fn primary_screen_area() -> WorkArea {
+    default_work_area()
+}
+
 /// Calculates a bottom-right overlay position clamped inside the supplied work area.
 pub fn overlay_position(work_area: WorkArea, overlay_size: (i32, i32), margin: i32) -> (i32, i32) {
     let (overlay_width, overlay_height) = overlay_size;
+    let overlay_width = overlay_width.max(DEFAULT_OVERLAY_WIDTH);
+    let overlay_height = overlay_height.max(DEFAULT_OVERLAY_HEIGHT);
     let margin = margin.max(0);
     let x = (work_area.left + work_area.width - overlay_width - margin).max(work_area.left);
     let y = (work_area.top + work_area.height - overlay_height - margin).max(work_area.top);
@@ -91,5 +101,17 @@ mod tests {
 
         assert_eq!(overlay_position(work_area, (240, 120), 24), (636, 506));
         assert_eq!(overlay_position(work_area, (900, 700), 24), (100, 50));
+    }
+
+    #[test]
+    fn overlay_position_uses_default_size_before_window_layout() {
+        let work_area = WorkArea {
+            left: 0,
+            top: 0,
+            width: 1920,
+            height: 1040,
+        };
+
+        assert_eq!(overlay_position(work_area, (0, 0), 24), (1716, 954));
     }
 }

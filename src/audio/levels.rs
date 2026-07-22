@@ -24,3 +24,15 @@ pub fn peak_level_i16(samples: &[i16]) -> f32 {
 
     (max as f32 / 32768.0).clamp(0.0, 1.0)
 }
+
+pub fn mean_absolute_level_i16(samples: &[i16]) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+
+    let sum: u64 = samples
+        .iter()
+        .map(|sample| u64::from((*sample as i32).unsigned_abs()))
+        .sum();
+    (sum as f32 / samples.len() as f32 / 32768.0).clamp(0.0, 1.0)
+}

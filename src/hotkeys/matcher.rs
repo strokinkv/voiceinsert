@@ -24,10 +24,6 @@ pub fn normalize_hotkey(value: &str) -> anyhow::Result<String> {
         }
     }
 
-    if modifiers.is_empty() {
-        anyhow::bail!("Hotkey must include at least one modifier");
-    }
-
     let key = key.ok_or_else(|| anyhow::anyhow!("Hotkey must include a main key"))?;
     let mut parts = Vec::new();
     for modifier in MODIFIER_ORDER {
@@ -38,17 +34,6 @@ pub fn normalize_hotkey(value: &str) -> anyhow::Result<String> {
     parts.push(key);
 
     Ok(parts.join("+"))
-}
-
-pub fn validate_pair(transcription: &str, translation: &str) -> anyhow::Result<()> {
-    let transcription = normalize_hotkey(transcription)?;
-    let translation = normalize_hotkey(translation)?;
-
-    if transcription.eq_ignore_ascii_case(&translation) {
-        anyhow::bail!("Transcription and translation hotkeys must be different");
-    }
-
-    Ok(())
 }
 
 fn normalize_modifier(value: &str) -> Option<&'static str> {
@@ -107,7 +92,7 @@ fn normalize_alpha_numeric_or_function_key(value: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_hotkey, validate_pair};
+    use super::normalize_hotkey;
 
     #[test]
     fn normalizes_modifier_order() {
@@ -120,13 +105,10 @@ mod tests {
     }
 
     #[test]
-    fn rejects_hotkeys_without_modifier() {
-        assert!(normalize_hotkey("Space").is_err());
-    }
-
-    #[test]
-    fn rejects_duplicate_transcription_and_translation_hotkeys() {
-        assert!(validate_pair("Ctrl+Space", "Ctrl+Space").is_err());
+    fn accepts_hotkeys_without_modifier() {
+        assert_eq!(normalize_hotkey("Space").unwrap(), "Space");
+        assert_eq!(normalize_hotkey("f23").unwrap(), "F23");
+        assert_eq!(normalize_hotkey("y").unwrap(), "Y");
     }
 
     #[test]

@@ -164,7 +164,6 @@ pub struct AppSettings {
     pub active_api_profile_id: String,
     pub api_profiles: Vec<ApiProfile>,
     pub hotkey: String,
-    pub translation_hotkey: String,
     pub recording_mode: RecordingMode,
     pub silence_threshold_percent: u8,
     pub silence_timeout_milliseconds: u64,
@@ -187,7 +186,6 @@ impl Default for AppSettings {
             active_api_profile_id: "ai2npu".to_string(),
             api_profiles: vec![ai2npu_profile(), groq_profile()],
             hotkey: "Ctrl+Space".to_string(),
-            translation_hotkey: "Alt+Y".to_string(),
             recording_mode: RecordingMode::Toggle,
             silence_threshold_percent: 4,
             silence_timeout_milliseconds: 1200,
@@ -212,7 +210,6 @@ struct AppSettingsFile {
     active_api_profile_id: String,
     api_profiles: Option<Vec<ApiProfile>>,
     hotkey: String,
-    translation_hotkey: String,
     recording_mode: RecordingMode,
     silence_threshold_percent: u8,
     silence_timeout_milliseconds: u64,
@@ -238,7 +235,6 @@ impl Default for AppSettingsFile {
             active_api_profile_id: defaults.active_api_profile_id,
             api_profiles: None,
             hotkey: defaults.hotkey,
-            translation_hotkey: defaults.translation_hotkey,
             recording_mode: defaults.recording_mode,
             silence_threshold_percent: defaults.silence_threshold_percent,
             silence_timeout_milliseconds: defaults.silence_timeout_milliseconds,
@@ -273,7 +269,6 @@ impl AppSettingsFile {
             active_api_profile_id: self.active_api_profile_id,
             api_profiles: self.api_profiles.unwrap_or_default(),
             hotkey: self.hotkey,
-            translation_hotkey: self.translation_hotkey,
             recording_mode: self.recording_mode,
             silence_threshold_percent: self.silence_threshold_percent,
             silence_timeout_milliseconds: self.silence_timeout_milliseconds,
@@ -318,16 +313,6 @@ impl AppSettings {
     pub fn normalized(mut self) -> Self {
         self.settings_version = 8;
         self.hotkey = normalize_hotkey(&self.hotkey).unwrap_or_else(|_| "Ctrl+Space".to_string());
-        self.translation_hotkey =
-            normalize_hotkey(&self.translation_hotkey).unwrap_or_else(|_| "Alt+Y".to_string());
-
-        if self.hotkey.eq_ignore_ascii_case(&self.translation_hotkey) {
-            self.translation_hotkey = if self.hotkey.eq_ignore_ascii_case("Alt+Y") {
-                "Ctrl+Alt+Y".to_string()
-            } else {
-                "Alt+Y".to_string()
-            };
-        }
 
         self.silence_threshold_percent = self.silence_threshold_percent.min(100);
         self.silence_timeout_milliseconds = self.silence_timeout_milliseconds.clamp(100, 30_000);
