@@ -4,6 +4,7 @@ use crate::api::transcription::{SendAudioRequest, send_audio};
 use crate::clipboard::ClipboardInserter;
 use std::future::Future;
 use std::sync::mpsc::Sender;
+use tokio::task::AbortHandle;
 
 #[derive(Debug)]
 pub(super) enum BackgroundEvent {
@@ -33,7 +34,7 @@ pub(super) fn spawn_voice_insert_task(
     clipboard: ClipboardInserter,
     task: AudioTask,
     events: Sender<BackgroundEvent>,
-) {
+) -> AbortHandle {
     spawn_reported(handle, events.clone(), async move {
         let completion = async {
             let AudioTask {
@@ -67,7 +68,7 @@ pub(super) fn spawn_voice_insert_task(
         let _ = events.send(BackgroundEvent::VoiceInsertionComplete(
             completion.map_err(voice_completion_error),
         ));
-    });
+    })
 }
 
 pub(super) fn spawn_load_models_task(
@@ -96,18 +97,27 @@ pub(super) fn spawn_load_models_task(
     });
 }
 
-fn spawn_reported<F>(handle: tokio::runtime::Handle, events: Sender<BackgroundEvent>, future: F)
+fn spawn_reported<F>(
+    handle: tokio::runtime::Handle,
+    events: Sender<BackgroundEvent>,
+    future: F,
+) -> AbortHandle
 where
     F: Future<Output = ()> + Send + 'static,
 {
     let join = handle.spawn(future);
+    let abort_handle = join.abort_handle();
     handle.spawn(async move {
         if let Err(error) = join.await {
+            if error.is_cancelled() {
+                return;
+            }
             let _ = events.send(BackgroundEvent::Error(format!(
                 "Background task failed: {error}"
             )));
         }
     });
+    abort_handle
 }
 
 fn voice_completion_error(error: anyhow::Error) -> String {

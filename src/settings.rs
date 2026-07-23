@@ -15,6 +15,7 @@ pub const AI2NPU_DEFAULT_MODEL: &str = "openai/whisper-large-v3-turbo";
 pub enum RecordingMode {
     Toggle,
     Hold,
+    Hybrid,
     SilenceTimeout,
 }
 
@@ -25,16 +26,18 @@ impl<'de> Deserialize<'de> for RecordingMode {
     {
         deserialize_enum(
             deserializer,
-            &["Toggle", "Hold", "SilenceTimeout"],
+            &["Toggle", "Hold", "Hybrid", "SilenceTimeout"],
             |value| match value {
                 0 => Some(Self::Toggle),
                 1 => Some(Self::Hold),
                 2 => Some(Self::SilenceTimeout),
+                3 => Some(Self::Hybrid),
                 _ => None,
             },
             |value| match value {
                 "Toggle" => Some(Self::Toggle),
                 "Hold" => Some(Self::Hold),
+                "Hybrid" => Some(Self::Hybrid),
                 "SilenceTimeout" => Some(Self::SilenceTimeout),
                 _ => None,
             },

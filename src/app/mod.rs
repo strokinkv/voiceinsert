@@ -18,11 +18,14 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::task::AbortHandle;
 
 use background::{AudioTask, BackgroundEvent, spawn_load_models_task, spawn_voice_insert_task};
 use commands::{api_key_for_profile, http_client_for_profile, model_for_request};
 use state::{StateCommand, VoiceInsertState, log_error_message};
+
+const HYBRID_RELEASE_STOP_AFTER: Duration = Duration::from_secs(2);
 
 /// Starts the single-instance VoiceInsert runtime and enters the Slint event loop.
 pub fn run() -> anyhow::Result<()> {
@@ -48,8 +51,10 @@ pub struct AppRuntime {
     tray: RuntimeTray,
     ui: UiController,
     hotkeys: GlobalHotkeyEvents,
+    activation_pressed_at: Option<Instant>,
     recorder: Option<Recorder>,
     level_rx: Option<Receiver<LevelSample>>,
+    voice_insertion_abort: Option<AbortHandle>,
     sounds: SoundService,
     clipboard: ClipboardInserter,
     model_options_profile_id: Option<String>,
@@ -105,8 +110,10 @@ impl AppRuntime {
             tray,
             ui,
             hotkeys,
+            activation_pressed_at: None,
             recorder: None,
             level_rx: None,
+            voice_insertion_abort: None,
             sounds,
             clipboard,
             model_options_profile_id: None,
@@ -198,21 +205,13 @@ impl AppRuntime {
     }
 
     fn handle_hotkey_action(&mut self, action: HotkeyAction) {
-        let command = match action {
-            HotkeyAction::TranscribePressed => self.state.hotkey_pressed(),
-            HotkeyAction::Released => self.state.hotkey_released(),
-            HotkeyAction::CopilotPressed if is_copilot_hotkey(&self.settings.hotkey) => {
-                self.state.hotkey_pressed()
-            }
-            HotkeyAction::CopilotReleased if is_copilot_hotkey(&self.settings.hotkey) => {
-                if self.settings.recording_mode == RecordingMode::Hold {
-                    self.state.hotkey_released()
-                } else {
-                    self.state.hotkey_pressed()
-                }
-            }
-            HotkeyAction::CopilotPressed | HotkeyAction::CopilotReleased => StateCommand::None,
-        };
+        let command = hotkey_command_for_action(
+            &mut self.state,
+            &self.settings.hotkey,
+            self.settings.recording_mode,
+            action,
+            update_activation_pressed_at(&mut self.activation_pressed_at, action),
+        );
 
         if let Err(error) = self.apply_state_command(command) {
             let message = log_error_message(&error);
@@ -242,6 +241,14 @@ impl AppRuntime {
                     .set_overlay_status(texts(self.settings.ui_language).transcribing)?;
                 let _ = self.sounds.play(SoundKind::Stop);
                 self.stop_recording_and_insert()?;
+            }
+            StateCommand::CancelTranscription => {
+                tracing::info!("transcription cancelled");
+                self.cancel_voice_insertion();
+                self.tray.set_state(TrayState::Idle);
+                self.ui.hide_overlay();
+                self.ui
+                    .set_status(texts(self.settings.ui_language).transcription_cancelled);
             }
         }
 
@@ -295,7 +302,7 @@ impl AppRuntime {
         }
 
         let profile = self.settings.active_profile();
-        spawn_voice_insert_task(
+        self.voice_insertion_abort = Some(spawn_voice_insert_task(
             self.tokio.handle().clone(),
             self.http.clone(),
             self.clipboard,
@@ -309,8 +316,14 @@ impl AppRuntime {
                 target_window: active_window(),
             },
             self.background_tx.clone(),
-        );
+        ));
         Ok(())
+    }
+
+    fn cancel_voice_insertion(&mut self) {
+        if let Some(abort_handle) = self.voice_insertion_abort.take() {
+            abort_handle.abort();
+        }
     }
 
     fn process_background_events(&mut self) {
@@ -337,17 +350,27 @@ impl AppRuntime {
                     }
                 }
                 Ok(BackgroundEvent::VoiceInsertionStarted) => {
-                    self.state.mark_inserting();
-                    let _ = self
-                        .ui
-                        .set_overlay_status(texts(self.settings.ui_language).inserting);
+                    if self.voice_insertion_abort.is_some() {
+                        self.state.mark_inserting();
+                        let _ = self
+                            .ui
+                            .set_overlay_status(texts(self.settings.ui_language).inserting);
+                    }
                 }
                 Ok(BackgroundEvent::VoiceInsertionComplete(Ok(()))) => {
+                    if self.voice_insertion_abort.is_none() {
+                        continue;
+                    }
+                    self.voice_insertion_abort = None;
                     self.state.mark_idle();
                     self.tray.set_state(TrayState::Idle);
                     self.ui.hide_overlay();
                 }
                 Ok(BackgroundEvent::VoiceInsertionComplete(Err(message))) => {
+                    if self.voice_insertion_abort.is_none() {
+                        continue;
+                    }
+                    self.voice_insertion_abort = None;
                     tracing::error!(%message, "voice insertion task failed");
                     self.state.mark_error();
                     self.tray.set_state(TrayState::Error);
@@ -422,6 +445,54 @@ impl AppRuntime {
             self.background_tx.clone(),
         );
         Ok(())
+    }
+}
+
+fn hotkey_command_for_action(
+    state: &mut VoiceInsertState,
+    hotkey: &str,
+    recording_mode: RecordingMode,
+    action: HotkeyAction,
+    held_for: Option<Duration>,
+) -> StateCommand {
+    match action {
+        HotkeyAction::TranscribePressed => state.hotkey_pressed(),
+        HotkeyAction::Released
+            if recording_mode == RecordingMode::Hybrid
+                && held_for.is_some_and(|duration| duration >= HYBRID_RELEASE_STOP_AFTER) =>
+        {
+            state.hotkey_pressed()
+        }
+        HotkeyAction::Released => state.hotkey_released(),
+        HotkeyAction::CopilotPressed if is_copilot_hotkey(hotkey) => state.hotkey_pressed(),
+        HotkeyAction::CopilotReleased
+            if is_copilot_hotkey(hotkey) && recording_mode == RecordingMode::Hold =>
+        {
+            state.hotkey_released()
+        }
+        HotkeyAction::CopilotReleased
+            if is_copilot_hotkey(hotkey)
+                && recording_mode == RecordingMode::Hybrid
+                && held_for.is_some_and(|duration| duration >= HYBRID_RELEASE_STOP_AFTER) =>
+        {
+            state.hotkey_pressed()
+        }
+        HotkeyAction::CopilotPressed | HotkeyAction::CopilotReleased => StateCommand::None,
+    }
+}
+
+fn update_activation_pressed_at(
+    activation_pressed_at: &mut Option<Instant>,
+    action: HotkeyAction,
+) -> Option<Duration> {
+    match action {
+        HotkeyAction::TranscribePressed | HotkeyAction::CopilotPressed => {
+            *activation_pressed_at = Some(Instant::now());
+            None
+        }
+        HotkeyAction::Released | HotkeyAction::CopilotReleased => activation_pressed_at
+            .take()
+            .map(|pressed_at| pressed_at.elapsed()),
     }
 }
 
@@ -540,11 +611,16 @@ mod tests {
         api_key_for_profile, apply_settings_edit, model_for_request, profile_id_by_name,
         profile_requires_http_rebuild,
     };
-    use super::{SingleInstanceGuard, should_apply_models_event, should_skip_transcription};
+    use super::{
+        SingleInstanceGuard, hotkey_command_for_action, should_apply_models_event,
+        should_skip_transcription,
+    };
     use crate::audio::recorder::RecordedAudio;
+    use crate::hotkeys::service::HotkeyAction;
     use crate::settings::{ApiProfile, RecordingMode};
     use crate::ui::SettingsEdit;
     use std::collections::BTreeMap;
+    use std::time::Duration;
 
     #[test]
     fn single_instance_guard_reports_acquired_on_non_conflicting_name() {
@@ -649,6 +725,161 @@ mod tests {
         assert!(!should_apply_models_event("ai2npu", Some(3), "ai2npu", 2));
         assert!(!should_apply_models_event("ai2npu", Some(3), "groq", 3));
         assert!(!should_apply_models_event("ai2npu", None, "ai2npu", 1));
+    }
+
+    #[test]
+    fn copilot_toggle_ignores_key_release() {
+        let mut state =
+            super::state::VoiceInsertState::new(RecordingMode::Toggle, 0.04, 1200, 120_000);
+
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Shift+Win+F23",
+                RecordingMode::Toggle,
+                HotkeyAction::CopilotPressed,
+                None,
+            ),
+            super::state::StateCommand::StartRecording
+        );
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Shift+Win+F23",
+                RecordingMode::Toggle,
+                HotkeyAction::CopilotReleased,
+                Some(Duration::from_secs(3)),
+            ),
+            super::state::StateCommand::None
+        );
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Shift+Win+F23",
+                RecordingMode::Toggle,
+                HotkeyAction::CopilotPressed,
+                None,
+            ),
+            super::state::StateCommand::StopAndTranscribe
+        );
+    }
+
+    #[test]
+    fn copilot_hold_stops_on_key_release() {
+        let mut state =
+            super::state::VoiceInsertState::new(RecordingMode::Hold, 0.04, 1200, 120_000);
+
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Shift+Win+F23",
+                RecordingMode::Hold,
+                HotkeyAction::CopilotPressed,
+                None,
+            ),
+            super::state::StateCommand::StartRecording
+        );
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Shift+Win+F23",
+                RecordingMode::Hold,
+                HotkeyAction::CopilotReleased,
+                Some(Duration::from_millis(100)),
+            ),
+            super::state::StateCommand::StopAndTranscribe
+        );
+    }
+
+    #[test]
+    fn hybrid_short_release_keeps_recording() {
+        let mut state =
+            super::state::VoiceInsertState::new(RecordingMode::Hybrid, 0.04, 1200, 120_000);
+
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Ctrl+Space",
+                RecordingMode::Hybrid,
+                HotkeyAction::TranscribePressed,
+                None,
+            ),
+            super::state::StateCommand::StartRecording
+        );
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Ctrl+Space",
+                RecordingMode::Hybrid,
+                HotkeyAction::Released,
+                Some(Duration::from_millis(1500)),
+            ),
+            super::state::StateCommand::None
+        );
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Ctrl+Space",
+                RecordingMode::Hybrid,
+                HotkeyAction::TranscribePressed,
+                None,
+            ),
+            super::state::StateCommand::StopAndTranscribe
+        );
+    }
+
+    #[test]
+    fn hybrid_long_release_stops_recording() {
+        let mut state =
+            super::state::VoiceInsertState::new(RecordingMode::Hybrid, 0.04, 1200, 120_000);
+
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Ctrl+Space",
+                RecordingMode::Hybrid,
+                HotkeyAction::TranscribePressed,
+                None,
+            ),
+            super::state::StateCommand::StartRecording
+        );
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Ctrl+Space",
+                RecordingMode::Hybrid,
+                HotkeyAction::Released,
+                Some(Duration::from_secs(2)),
+            ),
+            super::state::StateCommand::StopAndTranscribe
+        );
+    }
+
+    #[test]
+    fn hybrid_copilot_long_release_stops_recording() {
+        let mut state =
+            super::state::VoiceInsertState::new(RecordingMode::Hybrid, 0.04, 1200, 120_000);
+
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Shift+Win+F23",
+                RecordingMode::Hybrid,
+                HotkeyAction::CopilotPressed,
+                None,
+            ),
+            super::state::StateCommand::StartRecording
+        );
+        assert_eq!(
+            hotkey_command_for_action(
+                &mut state,
+                "Shift+Win+F23",
+                RecordingMode::Hybrid,
+                HotkeyAction::CopilotReleased,
+                Some(Duration::from_millis(2001)),
+            ),
+            super::state::StateCommand::StopAndTranscribe
+        );
     }
 
     #[test]

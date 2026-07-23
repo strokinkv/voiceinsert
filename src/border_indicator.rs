@@ -19,12 +19,18 @@ mod platform {
     };
     use windows::core::PCWSTR;
 
-    const BORDER_WIDTH: i32 = 9;
+    const BORDER_WIDTH: i32 = 12;
     const ALPHA: u8 = 210;
 
     pub struct BorderIndicator {
         windows: Vec<HWND>,
         visible_color: Option<BorderIndicatorColor>,
+    }
+
+    impl Default for BorderIndicator {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl BorderIndicator {

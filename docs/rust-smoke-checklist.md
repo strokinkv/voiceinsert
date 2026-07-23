@@ -1,27 +1,35 @@
-# Rust Rewrite Smoke Checklist
+# VoiceInsert: smoke checklist
 
-Use this checklist on Windows 11 after antivirus handling for Cargo `target/` is settled.
+Используйте этот список на Windows 11 перед упаковкой или публикацией релиза.
 
-- [ ] `cargo fmt --check` passes.
-- [ ] `cargo clippy --all-targets -- -D warnings` passes.
-- [ ] `cargo test` passes.
-- [ ] `cargo build --release` creates `target\release\VoiceInsert.exe`.
-- [ ] `.\scripts\package.ps1` creates `artifacts\installer\VoiceInsertSetup.exe`.
-- [ ] App starts and creates one tray icon.
-- [ ] Starting a second instance exits without creating another tray icon.
-- [ ] Settings opens from tray.
-- [ ] Tray menu localizes in Russian and English.
-- [ ] Default profiles are `ai2npu` then `groq`.
-- [ ] `ai2npu` points to `http://localhost:9555`.
-- [ ] `ai2npu` uses `openai/whisper-large-v3-turbo`.
-- [ ] Model loading calls `GET {base_url}/v1/models`.
-- [ ] Transcription calls `POST {base_url}/v1/audio/transcriptions`.
-- [ ] Audio requests send WAV as mono 16 kHz signed 16-bit PCM with `response_format=json`.
-- [ ] `Ctrl+Space` starts transcription.
-- [ ] `Toggle`, `Hold`, and `Silence timeout` behave per spec.
-- [ ] Overlay shows centered localized status and compact waveform.
-- [ ] Overlay waveform appears, stays colorized during silence, and resets between recordings.
-- [ ] Clipboard insertion works in Notepad.
-- [ ] Logs omit API key, audio, recognized text, and response body.
-- [ ] Silent install works with `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`.
-- [ ] `winget uninstall "VoiceInsert" --silent` path is registered through quiet uninstall.
+- [ ] `cargo fmt --all -- --check` проходит успешно.
+- [ ] `cargo clippy --all-targets -- -D warnings` проходит успешно.
+- [ ] `cargo test` проходит успешно.
+- [ ] `cargo build --release` создаёт `target\release\VoiceInsert.exe`.
+- [ ] `.\scripts\package.ps1` создаёт `artifacts\installer\VoiceInsertSetup.exe`.
+- [ ] Приложение запускается и создаёт одну иконку в трее.
+- [ ] Запуск второго экземпляра завершается без создания второй иконки в трее.
+- [ ] Левый клик по иконке в трее открывает настройки.
+- [ ] Контекстное меню в трее содержит настройки и выход.
+- [ ] Меню в трее локализуется на русский и английский.
+- [ ] Профили по умолчанию: `ai2npu`, затем `groq`.
+- [ ] `ai2npu` указывает на `http://localhost:9555`.
+- [ ] `ai2npu` использует `openai/whisper-large-v3-turbo`.
+- [ ] Загрузка моделей вызывает `GET {base_url}/v1/models`.
+- [ ] Транскрибация вызывает `POST {base_url}/v1/audio/transcriptions`.
+- [ ] Endpoint перевода не вызывается.
+- [ ] Аудиозапросы отправляют WAV как mono 16 kHz signed 16-bit PCM с `response_format=json`.
+- [ ] `Ctrl+Space` запускает запись.
+- [ ] Режимы `Toggle`, `Hold`, `Hybrid` и `Silence timeout` работают по спецификации.
+- [ ] Длинная тишина останавливает запись в `Hybrid` и `Silence timeout`.
+- [ ] Нажатие горячей клавиши во время долгого ожидания API отменяет транскрибацию и возвращает приложение в idle.
+- [ ] Во время записи появляется зелёная рамка по краям экрана.
+- [ ] Во время транскрибации и вставки появляется оранжевая рамка по краям экрана.
+- [ ] Настройки сохраняются сразу после изменения поля, переключателя, выпадающего списка или профиля.
+- [ ] Окно настроек не меняет размер при переносе между мониторами.
+- [ ] Строка состояния показывает ошибки как выделяемый read-only текст.
+- [ ] Вставка через буфер обмена работает в Notepad.
+- [ ] Логи не содержат API key, аудио, распознанный текст и body ответа.
+- [ ] Файлы логов заканчиваются на `.log`.
+- [ ] Тихая установка работает с `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`.
+- [ ] Для `winget uninstall "VoiceInsert" --silent` зарегистрирован тихий uninstall.

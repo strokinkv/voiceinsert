@@ -14,7 +14,8 @@ fn toggle_and_hold_do_not_stop_on_silence() {
 }
 
 #[test]
-fn silence_timeout_stops_on_silence() {
+fn hybrid_and_silence_timeout_stop_on_silence() {
+    assert!(should_stop_on_silence(RecordingMode::Hybrid));
     assert!(should_stop_on_silence(RecordingMode::SilenceTimeout));
 }
 
@@ -22,6 +23,7 @@ fn silence_timeout_stops_on_silence() {
 fn silence_policy_matches_spec() {
     assert!(!should_stop_on_silence(RecordingMode::Toggle));
     assert!(!should_stop_on_silence(RecordingMode::Hold));
+    assert!(should_stop_on_silence(RecordingMode::Hybrid));
     assert!(should_stop_on_silence(RecordingMode::SilenceTimeout));
 }
 

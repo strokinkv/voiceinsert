@@ -1,7 +1,7 @@
 use crate::settings::RecordingMode;
 
 pub fn should_stop_on_silence(mode: RecordingMode) -> bool {
-    matches!(mode, RecordingMode::SilenceTimeout)
+    matches!(mode, RecordingMode::Hybrid | RecordingMode::SilenceTimeout)
 }
 
 pub fn peak_level_i16_le(bytes: &[u8]) -> f32 {

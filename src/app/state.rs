@@ -48,13 +48,24 @@ impl VoiceInsertState {
         match (self.recording_mode, self.state) {
             (RecordingMode::Hold, OperationState::Idle)
             | (RecordingMode::Hold, OperationState::Error)
-            | (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Idle)
-            | (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Error) => {
+            | (
+                RecordingMode::Toggle | RecordingMode::Hybrid | RecordingMode::SilenceTimeout,
+                OperationState::Idle,
+            )
+            | (
+                RecordingMode::Toggle | RecordingMode::Hybrid | RecordingMode::SilenceTimeout,
+                OperationState::Error,
+            ) => {
                 self.start_recording();
                 StateCommand::StartRecording
             }
-            (RecordingMode::Toggle | RecordingMode::SilenceTimeout, OperationState::Recording) => {
-                self.stop_for_transcription()
+            (
+                RecordingMode::Toggle | RecordingMode::Hybrid | RecordingMode::SilenceTimeout,
+                OperationState::Recording,
+            ) => self.stop_for_transcription(),
+            (_, OperationState::Transcribing) => {
+                self.state = OperationState::Idle;
+                StateCommand::CancelTranscription
             }
             _ => StateCommand::None,
         }
@@ -129,6 +140,7 @@ pub enum StateCommand {
     None,
     StartRecording,
     StopAndTranscribe,
+    CancelTranscription,
 }
 
 pub(super) fn log_error_message(error: &anyhow::Error) -> String {
@@ -148,6 +160,14 @@ mod tests {
     #[test]
     fn toggle_press_starts_then_stops_recording() {
         let mut state = VoiceInsertState::new(RecordingMode::Toggle, 0.04, 1200, 120_000);
+
+        assert_eq!(state.hotkey_pressed(), StateCommand::StartRecording);
+        assert_eq!(state.hotkey_pressed(), StateCommand::StopAndTranscribe);
+    }
+
+    #[test]
+    fn hybrid_press_starts_then_stops_recording() {
+        let mut state = VoiceInsertState::new(RecordingMode::Hybrid, 0.04, 1200, 120_000);
 
         assert_eq!(state.hotkey_pressed(), StateCommand::StartRecording);
         assert_eq!(state.hotkey_pressed(), StateCommand::StopAndTranscribe);
@@ -185,6 +205,18 @@ mod tests {
     }
 
     #[test]
+    fn hybrid_mode_stops_on_silence() {
+        let mut state = VoiceInsertState::new(RecordingMode::Hybrid, 0.5, 100, 120_000);
+
+        state.hotkey_pressed();
+
+        assert_eq!(
+            state.level_changed(0.0, 100),
+            StateCommand::StopAndTranscribe
+        );
+    }
+
+    #[test]
     fn max_duration_stops_all_recording_modes() {
         let mut state = VoiceInsertState::new(RecordingMode::Hold, 0.5, 1000, 250);
 
@@ -204,6 +236,17 @@ mod tests {
 
         assert_eq!(state.hotkey_pressed(), StateCommand::StartRecording);
         assert_eq!(state.state(), OperationState::Recording);
+    }
+
+    #[test]
+    fn hotkey_cancels_active_transcription() {
+        let mut state = VoiceInsertState::new(RecordingMode::Toggle, 0.04, 1200, 120_000);
+
+        state.hotkey_pressed();
+        state.hotkey_pressed();
+
+        assert_eq!(state.hotkey_pressed(), StateCommand::CancelTranscription);
+        assert_eq!(state.state(), OperationState::Idle);
     }
 
     #[test]

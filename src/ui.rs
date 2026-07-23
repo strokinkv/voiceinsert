@@ -436,8 +436,8 @@ fn recording_mode_options_for_display(mode: RecordingMode, language: AppLanguage
     current_first(
         recording_mode_display_label(mode, language),
         match language {
-            AppLanguage::Russian => &["Переключатель", "Удержание", "Тишина"],
-            AppLanguage::English => &["Toggle", "Hold", "SilenceTimeout"],
+            AppLanguage::Russian => &["Переключатель", "Удержание", "Гибрид", "Тишина"],
+            AppLanguage::English => &["Toggle", "Hold", "Hybrid", "SilenceTimeout"],
         },
     )
 }
@@ -478,9 +478,11 @@ fn recording_mode_display_label(mode: RecordingMode, language: AppLanguage) -> &
     match (language, mode) {
         (AppLanguage::Russian, RecordingMode::Toggle) => "Переключатель",
         (AppLanguage::Russian, RecordingMode::Hold) => "Удержание",
+        (AppLanguage::Russian, RecordingMode::Hybrid) => "Гибрид",
         (AppLanguage::Russian, RecordingMode::SilenceTimeout) => "Тишина",
         (_, RecordingMode::Toggle) => "Toggle",
         (_, RecordingMode::Hold) => "Hold",
+        (_, RecordingMode::Hybrid) => "Hybrid",
         (_, RecordingMode::SilenceTimeout) => "SilenceTimeout",
     }
 }
@@ -601,10 +603,10 @@ fn captured_hotkey_label(
 
 fn captured_key_label(key: &str) -> Option<String> {
     let named_key = key.trim();
-    if !named_key.is_empty() {
-        if let Ok(hotkey) = crate::hotkeys::matcher::normalize_hotkey(named_key) {
-            return Some(hotkey);
-        }
+    if !named_key.is_empty()
+        && let Ok(hotkey) = crate::hotkeys::matcher::normalize_hotkey(named_key)
+    {
+        return Some(hotkey);
     }
 
     let character = key.chars().next()?;
@@ -713,6 +715,16 @@ mod tests {
         assert_eq!(
             recording_mode_options_for_display(RecordingMode::Hold, AppLanguage::English)[0],
             "Hold"
+        );
+        assert!(
+            recording_mode_options_for_display(RecordingMode::Toggle, AppLanguage::Russian)
+                .iter()
+                .any(|value| value == "Гибрид")
+        );
+        assert!(
+            recording_mode_options_for_display(RecordingMode::Toggle, AppLanguage::English)
+                .iter()
+                .any(|value| value == "Hybrid")
         );
     }
 

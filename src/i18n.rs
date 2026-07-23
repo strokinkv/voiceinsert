@@ -16,6 +16,7 @@ pub struct Texts {
     pub api_profile_selected: &'static str,
     pub api_profile_required: &'static str,
     pub no_speech_detected: &'static str,
+    pub transcription_cancelled: &'static str,
 }
 
 pub fn texts(language: AppLanguage) -> Texts {
@@ -35,6 +36,7 @@ pub fn texts(language: AppLanguage) -> Texts {
             api_profile_selected: "API профиль выбран.",
             api_profile_required: "Нужен хотя бы один API профиль.",
             no_speech_detected: "Речь не обнаружена.",
+            transcription_cancelled: "Распознавание отменено.",
         },
         AppLanguage::English => Texts {
             settings: "Settings",
@@ -51,6 +53,7 @@ pub fn texts(language: AppLanguage) -> Texts {
             api_profile_selected: "API profile selected.",
             api_profile_required: "At least one API profile is required.",
             no_speech_detected: "No speech detected.",
+            transcription_cancelled: "Transcription cancelled.",
         },
     }
 }

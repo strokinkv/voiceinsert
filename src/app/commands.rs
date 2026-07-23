@@ -215,6 +215,7 @@ where
 fn parse_recording_mode(value: &str) -> RecordingMode {
     match value.trim() {
         "Hold" | "Удержание" => RecordingMode::Hold,
+        "Hybrid" | "Гибрид" => RecordingMode::Hybrid,
         "SilenceTimeout" | "Тишина" => RecordingMode::SilenceTimeout,
         _ => RecordingMode::Toggle,
     }

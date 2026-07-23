@@ -73,7 +73,7 @@ fn default_hotkeys_and_language_match_spec() {
 #[test]
 fn invalid_hotkeys_fall_back_to_defaults() {
     let settings = AppSettings {
-        hotkey: "Y".to_string(),
+        hotkey: "Ctrl".to_string(),
         ..AppSettings::default()
     }
     .normalized();
@@ -167,6 +167,18 @@ fn camel_case_settings_deserialize_profiles_and_active_profile() {
     assert_eq!(settings.active_profile().request_timeout_seconds, 5);
     assert_eq!(settings.recording_mode, RecordingMode::Hold);
     assert_eq!(settings.ui_language, AppLanguage::English);
+}
+
+#[test]
+fn hybrid_recording_mode_deserializes() {
+    let settings: AppSettings = serde_json::from_str(
+        r#"{
+            "recordingMode": "Hybrid"
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(settings.recording_mode, RecordingMode::Hybrid);
 }
 
 #[test]

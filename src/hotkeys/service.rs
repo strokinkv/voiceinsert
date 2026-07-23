@@ -183,11 +183,11 @@ impl Drop for CopilotHotkeyHook {
     fn drop(&mut self) {
         use windows::Win32::UI::WindowsAndMessaging::{HHOOK, UnhookWindowsHookEx};
 
-        if let Ok(mut state) = COPILOT_HOOK_STATE.lock() {
-            if state.tx.as_ref().is_some_and(|(id, _)| *id == self.id) {
-                state.tx = None;
-                state.active = false;
-            }
+        if let Ok(mut state) = COPILOT_HOOK_STATE.lock()
+            && state.tx.as_ref().is_some_and(|(id, _)| *id == self.id)
+        {
+            state.tx = None;
+            state.active = false;
         }
         let hook = HHOOK(self.hook as *mut core::ffi::c_void);
         let _ = unsafe { UnhookWindowsHookEx(hook) };

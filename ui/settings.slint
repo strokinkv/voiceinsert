@@ -168,17 +168,31 @@ export component SettingsWindow inherits Window {
 
         status-line := Rectangle {
             x: settings-list.x;
-            y: parent.height - 38px;
+            y: parent.height - 40px;
             width: settings-list.width;
-            height: 24px;
-            background: transparent;
+            height: 34px;
+            background: #ffffff;
+            border-color: #bfd0c9;
+            border-width: 1px;
+            border-radius: 4px;
+
+            Text {
+                x: 12px;
+                width: 74px;
+                height: parent.height;
+                text: root.is-russian ? "Статус:" : "Status:";
+                color: #66756f;
+                font-size: 13px;
+                vertical-alignment: center;
+            }
 
             TextInput {
                 text <=> root.status-text;
-                width: parent.width;
+                x: 86px;
+                width: parent.width - 98px;
                 height: parent.height;
                 color: #77402f;
-                font-size: 12px;
+                font-size: 13px;
                 vertical-alignment: center;
                 single-line: true;
                 read-only: true;

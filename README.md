@@ -1,101 +1,153 @@
 # VoiceInsert
 
-![VoiceInsert](docs/assets/VoiceInsert.png)
+![VoiceInsert](assets/VoiceInsert.png)
 
-VoiceInsert is a Windows 11 background utility. It records speech from a microphone, sends WAV audio to an OpenAI-compatible Audio API, and inserts the returned text into the active window through the clipboard.
+VoiceInsert - фоновая утилита для Windows 11. Она записывает речь с системного микрофона по глобальной горячей клавише, отправляет WAV-аудио в OpenAI-совместимый Audio API и вставляет распознанный текст в активное окно через буфер обмена.
 
-Russian documentation: [README_ru.md](README_ru.md)
+Техническое задание: [docs/technical-specification.md](docs/technical-specification.md)
 
-Technical specification: [docs/technical-specification.md](docs/technical-specification.md)
+Журнал изменений: [CHANGELOG.md](CHANGELOG.md)
 
-## Installation
+## Установка
 
-Download and run `VoiceInsertSetup.exe`.
+Для установки скачайте и запустите `VoiceInsertSetup.exe`.
 
-Silent install:
+Тихая установка:
 
 ```powershell
 .\artifacts\installer\VoiceInsertSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
-## Development
+Приложение устанавливается в `%APPDATA%\VoiceInsert`. После запуска оно работает из системного трея.
 
-VoiceInsert is being rewritten as a Rust Windows application with a Slint UI.
+## Быстрый старт
 
-```powershell
-cargo fmt --check
-cargo clippy --all-targets -- -D warnings
-cargo test
-cargo build --release
-.\scripts\package.ps1
-```
+1. Запустите VoiceInsert.
+2. Левым кликом по иконке в трее откройте окно настроек.
+3. Выберите API профиль и модель. Для локального сценария по умолчанию используется `ai2npu` на `http://localhost:9555`.
+4. Поставьте курсор в нужное поле ввода.
+5. Нажмите горячую клавишу распознавания, по умолчанию `Ctrl+Space`.
+6. После остановки записи VoiceInsert отправит аудио в API и вставит полученный текст через буфер обмена.
 
-## How to Use
+Во время записи по краям экрана показывается зелёная рамка. Во время распознавания и вставки рамка становится оранжевой. Если ожидание API слишком долгое, повторное нажатие горячей клавиши отменяет активное распознавание.
 
-1. Start VoiceInsert. The app appears in the system tray.
-2. Open `Settings` from the tray context menu.
-3. Select an API profile, enter an API key if needed, load models, and select a model.
-4. Place the cursor in the target window and press `Ctrl+Space` to recognize speech.
+## Настройки
 
-During recording, VoiceInsert shows a compact floating window with a centered localized status and a scrolling signal amplitude waveform. After the API response is received, the text is inserted into the active window through the clipboard.
+Окно настроек одноэкранное, без вкладок, карточек и кнопок сохранения. Все параметры сохраняются сразу после изменения.
 
-## Default API Profiles
+Основные параметры:
 
-VoiceInsert creates two API profiles on first launch:
+- горячая клавиша транскрибации;
+- активный API профиль;
+- Base URL;
+- API key;
+- модель;
+- температура;
+- таймаут API;
+- режим записи;
+- параметры остановки по тишине;
+- максимальная длительность записи;
+- автозапуск вместе с Windows;
+- звуковое оповещение;
+- язык интерфейса;
+- уровень логов;
+- восстановление буфера обмена;
+- задержка перед вставкой;
+- задержка перед восстановлением буфера.
 
-- `ai2npu`, first and primary profile: `http://localhost:9555`
-- `groq`: `https://api.groq.com/openai/`, without an API key
+Строка состояния внизу окна показывает ошибки и текущие сообщения приложения. Текст в строке состояния можно выделить, но нельзя редактировать.
 
-Model discovery:
+## Режимы записи
+
+- `Переключатель`: первое нажатие начинает запись, второе останавливает запись и запускает распознавание.
+- `Удержание`: запись идёт, пока удерживается горячая клавиша.
+- `Гибрид`: короткое нажатие работает как переключатель; если удерживать горячую клавишу дольше 2 секунд, отпускание остановит запись. Также запись останавливается по длинной паузе с настройками режима тишины.
+- `Тишина`: запись останавливается после паузы заданной длительности.
+
+Поддерживается захват одиночных клавиш и сочетаний. Для клавиши Windows Copilot используется путь F23.
+
+## API профили
+
+При первом запуске создаются профили:
+
+- `ai2npu`: `http://localhost:9555`, модель `openai/whisper-large-v3-turbo`;
+- `groq`: `https://api.groq.com/openai/`, без API key, модель `whisper-large-v3`.
+
+Модели загружаются автоматически при запуске приложения, переключении активного профиля и сохранении профиля.
+
+Загрузка моделей:
 
 ```text
 GET {base_url}/v1/models
 ```
 
-Transcription:
+Транскрибация:
 
 ```text
 POST {base_url}/v1/audio/transcriptions
 ```
 
-Each API profile has one model field. VoiceInsert sends audio only to the transcription endpoint.
+VoiceInsert использует только endpoint транскрибации. Сценарий перевода русского текста в английский удалён, API метод `translate` не используется.
 
-## Current Behavior
+## Вставка текста
 
-- The tray context menu is localized and contains `Settings` / `Exit`.
-- Default transcription hotkey: `Ctrl+Space`.
-- Recording modes: toggle, hold, silence timeout.
-- In toggle and hold modes, silence does not stop recording; only max recording duration applies.
-- The recording overlay uses a compact waveform-only indicator; it does not show separate `live` or `silent` labels.
-- Text insertion uses the clipboard.
-- API keys are protected with Windows DPAPI per profile.
-- Audio and recognized text are not saved to disk.
-- Logs do not contain audio, recognized text, or API keys.
-- Settings use a single-screen card layout without tabs or scrolling. API language input is not shown; audio requests default to Russian (`ru`) as the input language.
-- VoiceInsert always records from the current system default microphone.
-- The `Logs` section shows the logs folder, log level, and last error for the current app session.
+Вставка выполняется через буфер обмена:
 
-## Privacy
+- приложение помещает распознанный текст в clipboard;
+- эмулирует `Ctrl+V` в активном окне;
+- при включённой настройке восстанавливает предыдущее содержимое clipboard;
+- использует настраиваемые задержки перед вставкой и перед восстановлением буфера.
 
-- VoiceInsert does not save audio to disk.
-- Recognized text is not stored after insertion.
-- Logs do not include audio, recognized text, or API keys.
-- API keys are stored through Windows DPAPI separately for each profile.
-- Audio is sent only to the API endpoint configured in the selected profile.
-- With the default `ai2npu` profile, requests go to the local address `http://localhost:9555`.
+## Логи
 
-## Troubleshooting
+Логи пишутся в:
 
-- **No text is inserted:** make sure the target app is focused, increase the paste delay in `Settings > Insertion`, and try disabling clipboard restore for apps with custom clipboard handling.
-- **Hotkey does not work:** choose a hotkey with at least one modifier key and avoid shortcuts already used by the active app. `Ctrl+Space` can conflict with IDEs and input methods.
-- **Microphone is missing or silent:** refresh devices, select the full microphone name, and use the microphone level test before recording.
-- **API returns 401:** check the API key for the active profile. Keys are stored separately for each profile.
-- **API returns 404 or 422:** verify that the base URL does not include `/v1/audio/...` and that the server supports OpenAI-compatible `/v1/models` and `/v1/audio/transcriptions` endpoints.
-- **Installer cannot close the app:** exit VoiceInsert from the tray menu before installing or uninstalling.
+```text
+%LOCALAPPDATA%\VoiceInsert\Logs
+```
 
-## Limitations
+Файлы логов заканчиваются на `.log`. В настройках можно открыть папку логов и выбрать уровень логирования.
 
-- Windows 11 only.
-- Requires an OpenAI-compatible Audio API with `/v1/audio/transcriptions` and `/v1/models` endpoints.
-- Text insertion uses the clipboard, so behavior can depend on the active application.
-- Microphone input is recorded through the Rust audio backend and converted to mono 16 kHz PCM WAV before API upload.
+В логи не записываются аудио, распознанный текст и API ключи.
+
+## Приватность
+
+- Аудио хранится в памяти и не сохраняется на диск.
+- Распознанный текст не сохраняется после вставки.
+- API ключи хранятся через Windows DPAPI отдельно для каждого профиля.
+- Аудио отправляется только в API endpoint, указанный в активном профиле.
+- При профиле `ai2npu` данные отправляются на локальный адрес `http://localhost:9555`.
+
+## Диагностика
+
+- **Текст не вставляется:** проверьте фокус целевого приложения, увеличьте задержку перед вставкой и попробуйте отключить восстановление буфера обмена.
+- **Горячая клавиша не работает:** проверьте, что сочетание не занято активным приложением. Для Copilot/F23 задайте клавишу через захват или вручную как `F23`.
+- **Появляется ошибка после записи:** проверьте доступность активного API профиля и выбранной модели. Для `ai2npu` нужен работающий локальный сервер на `http://localhost:9555`.
+- **API возвращает 401:** проверьте API key активного профиля.
+- **API возвращает 404 или 422:** убедитесь, что Base URL не содержит `/v1/audio/...`, а сервер поддерживает `/v1/models` и `/v1/audio/transcriptions`.
+- **Ожидание распознавания слишком долгое:** нажмите горячую клавишу ещё раз, чтобы отменить текущую транскрибацию.
+
+## Разработка
+
+Основные проверки:
+
+```powershell
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+Сборка и локальная установка:
+
+```powershell
+cargo build --release
+.\scripts\package.ps1
+.\scripts\deploy-local.ps1
+```
+
+## Ограничения
+
+- Поддерживается только Windows 11.
+- Нужен OpenAI-совместимый Audio API с endpoint-ами `/v1/audio/transcriptions` и `/v1/models`.
+- Вставка выполняется через буфер обмена, поэтому поведение может зависеть от активного приложения.
+- Запись всегда идёт с системного микрофона по умолчанию.
