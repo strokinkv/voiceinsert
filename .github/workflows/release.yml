@@ -40,9 +40,36 @@ jobs:
           name: VoiceInsertSetup
           path: artifacts/installer/VoiceInsertSetup.exe
 
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $lines = Get-Content -LiteralPath CHANGELOG.md
+          $start = $null
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^##\s+$([regex]::Escape($tag))(\s|-|$)") {
+              $start = $i
+              break
+            }
+          }
+          if ($null -eq $start) {
+            throw "CHANGELOG.md does not contain a section for $tag."
+          }
+
+          $end = $lines.Count
+          for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^##\s+") {
+              $end = $i
+              break
+            }
+          }
+
+          $lines[$start..($end - 1)] | Set-Content -LiteralPath release-notes.md
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          body_path: CHANGELOG.md
+          body_path: release-notes.md
           files: artifacts/installer/VoiceInsertSetup.exe
